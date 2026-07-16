@@ -1,6 +1,6 @@
 // 掲載台帳（data/hotpepper-roster*.json）から「ネット予約ができなくなった店」
 // ＝以前はホットペッパーのネット予約カレンダーが使えたのに、今は使えなくなった店を
-// アタックリストとして出力する。
+// アタックリストとして出力する。data/manual-overrides.json で手動除外された店は含めない。
 //
 // 使い方:
 //   node scripts/list-reservation-lost.mjs --pref=chiba            # 直近90日を表示
@@ -12,6 +12,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getPrefFromArgv } from './prefectures.mjs';
+import { loadManualOverrides } from './hotpepper-roster.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ACTIVE_PREF = getPrefFromArgv();
@@ -38,10 +39,11 @@ async function main() {
     process.exit(1);
   }
   const { updatedAt = '', shops = {} } = roster;
+  const excludedIds = await loadManualOverrides();
   const cutoff = Date.now() - DAYS * 24 * 60 * 60 * 1000;
 
   const lost = Object.entries(shops)
-    .filter(([, s]) => s.reservationLostAt && Date.parse(s.reservationLostAt) >= cutoff)
+    .filter(([id, s]) => s.reservationLostAt && Date.parse(s.reservationLostAt) >= cutoff && !excludedIds.has(id))
     .map(([id, s]) => ({
       id,
       name: s.name,
@@ -49,7 +51,8 @@ async function main() {
       genre: s.genre,
       area: s.area,
       lastReservableOn: fmtDate(s.lastReservableAt),
-      lostOn: fmtDate(s.reservationLostAt),
+      suspectedOn: fmtDate(s.reservationSuspectedAt) || fmtDate(s.reservationLostAt), // 1回目検出日
+      lostOn: fmtDate(s.reservationLostAt), // 2回目確認・確定日
       url: s.url || `https://www.hotpepper.jp/str${id}/`,
     }))
     .sort((a, b) => (a.lostOn < b.lostOn ? 1 : -1));
@@ -57,17 +60,18 @@ async function main() {
   console.log(`■ ${ACTIVE_PREF.name} ネット予約不可になった店（直近${DAYS}日 / 台帳更新: ${fmtDate(updatedAt)}）`);
   console.log(`  該当: ${lost.length} 店\n`);
   for (const s of lost) {
-    const range = s.lastReservableOn ? `${s.lastReservableOn} 〜 ${s.lostOn} の間` : `${s.lostOn} 以前`;
+    const range = s.lastReservableOn ? `${s.lastReservableOn} 〜 ${s.suspectedOn} の間` : `${s.suspectedOn} 以前`;
     console.log(`・${s.name}${s.genre ? `（${s.genre}）` : ''}`);
     console.log(`   ${s.address}`);
-    console.log(`   ネット予約不可になった時期: ${range}（正確な日は特定できません。チェックは数日おきのため） / ページ: ${s.url}`);
+    console.log(`   ネット予約不可になった時期: ${range}（正確な日は特定できません。チェックは数日おきのため）`);
+    console.log(`   1回目検出: ${s.suspectedOn} → 2回目確認(確定): ${s.lostOn} / ページ: ${s.url}`);
   }
 
   if (CSV_PATH) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', 'ネット予約不可を検出した日', 'ホットペッパーURL'].map(esc).join(','),
-      ...lost.map(s => [s.name, s.genre, s.area, s.address, s.lastReservableOn, s.lostOn, s.url].map(esc).join(',')),
+      ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', 'ホットペッパーURL'].map(esc).join(','),
+      ...lost.map(s => [s.name, s.genre, s.area, s.address, s.lastReservableOn, s.suspectedOn, s.lostOn, s.url].map(esc).join(',')),
     ];
     // Excelで文字化けしないようBOM付きUTF-8で出力
     await writeFile(CSV_PATH, '\uFEFF' + rows.join('\r\n'));

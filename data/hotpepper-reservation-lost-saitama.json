@@ -15,7 +15,8 @@
    "reservable": false,
    "reservableCheckedAt": "2026-07-16T07:50:36.723Z",
    "lastReservableAt": "2026-07-15T10:03:42.947Z",
-   "reservationLostAt": "2026-07-16T07:50:36.723Z"
+   "reservationLostAt": "2026-07-16T07:50:36.723Z",
+   "reservationSuspectedAt": "2026-07-16T07:50:36.723Z"
   },
   {
    "id": "J004492214",
@@ -29,7 +30,8 @@
    "reservable": false,
    "reservableCheckedAt": "2026-07-15T22:16:42.470Z",
    "lastReservableAt": "2026-07-15T10:03:42.947Z",
-   "reservationLostAt": "2026-07-15T22:16:42.470Z"
+   "reservationLostAt": "2026-07-15T22:16:42.470Z",
+   "reservationSuspectedAt": "2026-07-15T22:16:42.470Z"
   }
  ]
 }

@@ -12,6 +12,7 @@ on:
       - 'scripts/hotpepper-roster.mjs'
       - 'scripts/prefectures.mjs'
       - 'scripts/test-data.mjs'
+      - 'data/manual-overrides.json'
       - '.github/workflows/update-attack-list.yml'
 
 permissions:

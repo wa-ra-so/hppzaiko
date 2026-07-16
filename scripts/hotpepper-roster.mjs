@@ -12,12 +12,16 @@
 //
 // 注意: ローテーションのため「予約できなくなった正確な日」はわからない。
 // 記録できるのは lastReservableAt（予約可能を最後に確認した日）〜
-// reservationLostAt（予約不可を検出した日）という"幅"のみ
+// reservationLostAt（予約不可を確定した日）という"幅"のみ
 // （チェック間隔は千葉県で約2〜3日あるため、実際の変化はこの間のどこか）。
 //
-// 「予約できなくなった店」＝ reservable が true→false に変わった店、または
-// 掲載自体が終了した店（true だった場合のみ）。reservationLostAt に検出日時を
-// 記録し、data/hotpepper-reservation-lost*.json に軽量抽出する。
+// 誤検出防止のため2段階確認方式を採る：
+//   1回目にtrue→falseを検出 → reservationSuspectedAt を記録するだけ（まだアタックリストには載せない）
+//   次のローテーションでも連続してfalseだった → reservationLostAt を記録し確定（アタックリスト入り）
+//   確認前にtrueに戻った → reservationSuspectedAt を削除して疑い解除
+// 1回のチェックだけで即断しないのは、bot判定ページ・一時的な障害・ページ構造の
+// 揺れなどで<title>の判定が一時的に狂うケースがあるため（詳細はcheckReservable参照）。
+// ただし掲載自体が終了した場合（掲載有無チェックは毎日走り信頼度が高い）は2段階を経ず即確定する。
 //
 // 使い方: HOTPEPPER_API_KEY=xxx node scripts/hotpepper-roster.mjs --pref=chiba
 // 依存パッケージなし（Node 20+ の組み込み fetch のみ使用）。
@@ -32,6 +36,8 @@ const ACTIVE_PREF = getPrefFromArgv();
 const ROSTER_PATH = path.join(__dirname, '..', 'data', ACTIVE_PREF.dataFile.replace(/^stores/, 'hotpepper-roster'));
 // attack.html が読む軽量版（予約できなくなった店のみの抽出。台帳本体は大きいため）
 const LOST_PATH = path.join(__dirname, '..', 'data', ACTIVE_PREF.dataFile.replace(/^stores/, 'hotpepper-reservation-lost'));
+// 誤検出などで手動除外したい店舗IDのリスト（全県共通・店舗IDはHotPepper全体で一意）
+export const MANUAL_OVERRIDES_PATH = path.join(__dirname, '..', 'data', 'manual-overrides.json');
 
 const HOTPEPPER_API_KEY = process.env.HOTPEPPER_API_KEY || '';
 const API_BASE = 'https://webservice.recruit.co.jp/hotpepper';
@@ -45,6 +51,12 @@ const RESERVE_CHECK_BATCH = +(process.env.RESERVE_CHECK_BATCH || 800);
 const RESERVE_CHECK_CONCURRENCY = 5;
 const RESERVE_PAGE_TIMEOUT_MS = 15000;
 const RESERVE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
+
+// 安全弁: 1回の実行で新たに「予約不可」を確定した件数がこれを超えたら、<title>タグの
+// 仕様変更・bot判定など検出ロジックそのものが壊れている可能性が高いとみなし、
+// 台帳を更新せず中断する（通常は1回の実行で多くても数件程度）。
+const LOST_SURGE_ABS_THRESHOLD = 20;
+const LOST_SURGE_RATIO_THRESHOLD = 0.1; // チェック数に対する割合
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -112,21 +124,67 @@ async function fetchAllShops(largeAreas) {
 }
 
 // 店舗ページの <title> にある「＜ネット予約可＞」表記の有無でネット予約可否を判定する。
-// 取得失敗時は null（不明）を返し、既存の状態を壊さないようにする。
-async function checkReservable(url) {
+// true/false が返らずnull（判定不能）になるのは以下のいずれか：
+//   - ページ取得に失敗した（HTTPエラー・タイムアウト等）
+//   - <title>が見つからない（bot判定ページ等、想定外のページが返ってきた）
+//   - <title>に「ネット予約可」が無いが、本文にも「現在ネット予約を受け付けていません」の
+//     裏取り文言が無い（HotPepper側のタイトル表記仕様が変わった可能性があるため、
+//     ここで false と決め打ちせず判定不能として今回はスキップする）
+// 判定不能時は既存の台帳の状態を壊さない（reservableを更新しない）。
+export async function checkReservable(url) {
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': RESERVE_UA },
+      cache: 'no-store', // 中間キャッシュ経由で古いページを拾わないようにする
       signal: AbortSignal.timeout(RESERVE_PAGE_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const html = await res.text();
     const m = html.match(/<title>([^<]*)<\/title>/i);
     if (!m) return null;
-    return m[1].includes('ネット予約可');
+    if (m[1].includes('ネット予約可')) return true;
+    // タイトルに「ネット予約可」が無い＝不可の可能性。本文の実際の予約不可メッセージでも
+    // 裏取りできた場合のみ false とする（タイトル表記だけに依存しないための二重チェック）
+    if (html.includes('現在ネット予約を受け付けていません')) return false;
+    return null;
   } catch {
     return null;
   }
+}
+
+// 1件分のチェック結果を店舗レコードへ反映する（テスト容易化のため純粋関数として分離）。
+// 2段階確認方式:
+//   true                                → 確定/疑いを解除し reservable:true に
+//   false かつ 前回 reservable:true      → 1回目の検出。reservationSuspectedAt を記録するのみ
+//   false かつ 疑い中（未確定）           → 2回目の連続検出。reservationLostAt を記録し確定
+//   false かつ 既に確定済み／元々予約なし  → reservableCheckedAt のみ更新
+export function applyReservableCheck(shop, result, stamp) {
+  if (result === true) {
+    const next = { ...shop, reservable: true, reservableCheckedAt: stamp, lastReservableAt: stamp };
+    delete next.reservationSuspectedAt;
+    delete next.reservationLostAt;
+    return { shop: next, newlyConfirmedLost: false };
+  }
+  const wasReservable = shop.reservable;
+  if (wasReservable === true) {
+    return {
+      shop: { ...shop, reservable: false, reservableCheckedAt: stamp, reservationSuspectedAt: stamp },
+      newlyConfirmedLost: false,
+    };
+  }
+  if (wasReservable === false && shop.reservationSuspectedAt && !shop.reservationLostAt) {
+    return {
+      shop: { ...shop, reservable: false, reservableCheckedAt: stamp, reservationLostAt: stamp },
+      newlyConfirmedLost: true,
+    };
+  }
+  // wasReservable が undefined（初回チェック）で result が false の場合は
+  // 「元々ネット予約なし」の可能性が高く、予約"できなくなった"わけではないため対象外。
+  // 既に確定済みの店はチェック日だけ更新し、reservationLostAt（初回確定日）は保持する。
+  return {
+    shop: { ...shop, reservable: false, reservableCheckedAt: stamp },
+    newlyConfirmedLost: false,
+  };
 }
 
 async function loadRoster() {
@@ -141,7 +199,16 @@ async function loadRoster() {
   }
 }
 
-async function main() {
+export async function loadManualOverrides() {
+  try {
+    const json = JSON.parse(await readFile(MANUAL_OVERRIDES_PATH, 'utf-8'));
+    return new Set(Array.isArray(json.excludedIds) ? json.excludedIds : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export async function main() {
   if (!HOTPEPPER_API_KEY) {
     console.log('[info] HOTPEPPER_API_KEY not set; skipping roster update');
     return;
@@ -149,6 +216,7 @@ async function main() {
   const stamp = new Date().toISOString();
   const prev = await loadRoster();
   const prevActive = Object.values(prev.shops).filter(s => s.lastSeenAt === prev.updatedAt).length;
+  const excludedIds = await loadManualOverrides();
 
   const largeAreas = await resolveLargeArea(ACTIVE_PREF);
   console.log(`[info] ${ACTIVE_PREF.name} の大エリア: ${largeAreas.map(a => `${a.name}=${a.code}`).join(', ')}`);
@@ -175,18 +243,21 @@ async function main() {
   }
 
   // ── ネット予約可否チェック（ローテーション） ──
-  // 掲載中の店のうち、①現在アタックリストに載っている店（予約不可検出済み）を毎回優先的に
+  // 掲載中の店のうち、①現在アタックリストに載っている店・疑い中の店を毎回優先的に
   // 再チェックし、②残り枠は未チェック・チェックが古い店から順に確認する。
   // ①を優先しないと、予約可能に戻った店が次に選ばれるまで（東京なら最大2週間ほど）
-  // アタックリストに載ったままになってしまう。
+  // アタックリストに載ったままになってしまう。また疑い中の店（1回目検出済み）を
+  // 優先することで、2回目の確認（確定 or 解除）もできるだけ早く行われるようにする。
   const listedIds = Object.keys(shops).filter(id => shops[id].lastSeenAt === stamp);
   const byCheckedAtAsc = (a, b) => Date.parse(shops[a].reservableCheckedAt || 0) - Date.parse(shops[b].reservableCheckedAt || 0);
-  const lostIds = listedIds.filter(id => shops[id].reservationLostAt).sort(byCheckedAtAsc);
-  const restIds = listedIds.filter(id => !shops[id].reservationLostAt).sort(byCheckedAtAsc);
-  const checkQueue = [...lostIds, ...restIds].slice(0, RESERVE_CHECK_BATCH);
-  console.log(`[info] ネット予約チェック対象: ${checkQueue.length} 件（掲載中 ${listedIds.length} 件中、アタックリスト優先再チェック ${lostIds.length} 件）`);
+  const priorityIds = listedIds.filter(id => shops[id].reservationLostAt || shops[id].reservationSuspectedAt).sort(byCheckedAtAsc);
+  const restIds = listedIds.filter(id => !shops[id].reservationLostAt && !shops[id].reservationSuspectedAt).sort(byCheckedAtAsc);
+  const checkQueue = [...priorityIds, ...restIds].slice(0, RESERVE_CHECK_BATCH);
+  console.log(`[info] ネット予約チェック対象: ${checkQueue.length} 件（掲載中 ${listedIds.length} 件中、優先再チェック ${priorityIds.length} 件）`);
 
   const reservationLostNow = [];
+  const newlySuspected = [];
+  let newlyConfirmedFromCheck = 0;
   let checkedOk = 0;
   let checkFailed = 0;
   await mapWithConcurrency(checkQueue, RESERVE_CHECK_CONCURRENCY, async (id) => {
@@ -194,37 +265,43 @@ async function main() {
     const result = await checkReservable(s.url);
     if (result === null) { checkFailed++; return; }
     checkedOk++;
-    const wasReservable = s.reservable;
-    shops[id] = { ...s, reservable: result, reservableCheckedAt: stamp };
-    if (result === true) {
-      shops[id].lastReservableAt = stamp; // 「予約可能を最後に確認した日」を更新
-      if (s.reservationLostAt) delete shops[id].reservationLostAt; // 再びネット予約可能に戻った
-    } else if (wasReservable === true) {
-      // s.lastReservableAt は前回チェック時点で既に「予約可能を最後に確認した日」
-      // として記録済み（今回は false なので更新しない）。実際に変わったのはこの日から
-      // 今回検出した stamp までのどこか
-      shops[id].reservationLostAt = stamp;
-      reservationLostNow.push({ id, ...shops[id] });
+    const { shop: updated, newlyConfirmedLost } = applyReservableCheck(s, result, stamp);
+    shops[id] = updated;
+    if (newlyConfirmedLost) {
+      newlyConfirmedFromCheck++;
+      reservationLostNow.push({ id, ...updated });
+    } else if (result === false && updated.reservationSuspectedAt && updated.reservationSuspectedAt === stamp) {
+      newlySuspected.push({ id, ...updated });
     }
-    // wasReservable が undefined（初回チェック）で result が false の場合は
-    // 「元々ネット予約なし」の可能性が高く、予約"できなくなった"わけではないため対象外
   });
   console.log(`[info] ネット予約チェック結果: 成功 ${checkedOk} / 失敗 ${checkFailed}`);
+  if (newlySuspected.length > 0) {
+    console.log(`[info] 今回新たに「予約不可の疑い」を検出（1回目・まだアタックリスト未掲載）: ${newlySuspected.length} 店`);
+    for (const s of newlySuspected) console.log(`  - ${s.name}（${s.area || s.address}） ${s.url}`);
+  }
   if (reservationLostNow.length > 0) {
-    console.log(`[info] 今回新たにネット予約不可を検出: ${reservationLostNow.length} 店`);
+    console.log(`[info] 今回新たにネット予約不可を確定（2回目）: ${reservationLostNow.length} 店`);
     for (const s of reservationLostNow) {
       const range = s.lastReservableAt ? `${s.lastReservableAt.slice(0, 10)} 〜 ${s.reservationLostAt.slice(0, 10)}` : `〜${s.reservationLostAt.slice(0, 10)}`;
       console.log(`  - ${s.name}（${s.area || s.address}） ${range} ${s.url}`);
     }
   }
 
-  // 掲載終了店（台帳から消えた店）は、予約可だった場合のみ「予約できなくなった」に計上する
+  // 安全弁: <title>タグの仕様変更・bot判定などで検出ロジック自体が壊れていると、
+  // 一斉に「予約不可」の誤検出が発生しうる。異常な件数が確定した場合は台帳を更新しない
+  const surgeThreshold = Math.max(LOST_SURGE_ABS_THRESHOLD, checkQueue.length * LOST_SURGE_RATIO_THRESHOLD);
+  if (newlyConfirmedFromCheck > surgeThreshold) {
+    throw new Error(`newly confirmed reservation-lost surge: ${newlyConfirmedFromCheck} (checked ${checkQueue.length}, threshold ${Math.round(surgeThreshold)}); aborting roster update — possible detection logic breakage`);
+  }
+
+  // 掲載終了店（台帳から消えた店）は、予約可だった場合のみ「予約できなくなった」に計上する。
+  // 掲載有無チェックは毎日走り信頼度が高いため、ここは2段階確認を経ず即確定する。
   const newlyDelisted = Object.entries(shops).filter(([, s]) =>
     s.lastSeenAt === prev.updatedAt && prev.updatedAt !== '' && prev.updatedAt !== stamp);
   const newlyDelistedLost = [];
   for (const [id, s] of newlyDelisted) {
     if (s.reservable === true) {
-      shops[id] = { ...s, reservable: false, reservationLostAt: stamp };
+      shops[id] = { ...s, reservable: false, reservationSuspectedAt: s.reservationSuspectedAt || stamp, reservationLostAt: stamp };
       reservationLostNow.push({ id, ...shops[id] });
       newlyDelistedLost.push(shops[id]);
     }
@@ -247,31 +324,40 @@ async function main() {
     }
   }
 
-  const reservationLostAll = Object.entries(shops)
+  const reservationLostAllRaw = Object.entries(shops)
     .filter(([, s]) => !!s.reservationLostAt)
     .map(([id, s]) => ({ id, ...s }))
     .sort((a, b) => (a.reservationLostAt < b.reservationLostAt ? 1 : -1));
+  // 手動除外（誤検出などをdata/manual-overrides.jsonでピンポイントに外す）。
+  // 台帳（ROSTER_PATH）には残し、公開用のアタックリスト（LOST_PATH）からのみ除外する
+  const reservationLostAll = reservationLostAllRaw.filter(s => !excludedIds.has(s.id));
+  const excludedCount = reservationLostAllRaw.length - reservationLostAll.length;
 
   await mkdir(path.dirname(ROSTER_PATH), { recursive: true });
   await writeFile(ROSTER_PATH, JSON.stringify({
     updatedAt: stamp,
     pref: ACTIVE_PREF.id,
     activeCount: current.size,
-    reservationLostCount: reservationLostAll.length,
+    reservationLostCount: reservationLostAllRaw.length,
     shops,
   }, null, 1));
-  // アタックリスト画面（attack.html）用の軽量抽出
+  // アタックリスト画面（index.html）用の軽量抽出
   await writeFile(LOST_PATH, JSON.stringify({
     updatedAt: stamp,
     pref: ACTIVE_PREF.id,
     activeCount: current.size,
     items: reservationLostAll,
   }, null, 1));
-  console.log(`[info] 台帳更新: 掲載中 ${current.size} / 新規 ${added} / 予約不可(累計) ${reservationLostAll.length} / 掃除 ${pruned}`);
+  console.log(`[info] 台帳更新: 掲載中 ${current.size} / 新規 ${added} / 予約不可(累計) ${reservationLostAllRaw.length}（手動除外 ${excludedCount}） / 疑い中 ${listedIds.filter(id => shops[id].reservationSuspectedAt && !shops[id].reservationLostAt).length} / 掃除 ${pruned}`);
   console.log(`[info] wrote ${ROSTER_PATH} / ${LOST_PATH}`);
 }
 
-main().catch(err => {
-  console.error('[error]', err.message || err);
-  process.exit(1);
-});
+// このファイルが直接実行された場合のみ main() を走らせる（test-data.mjs から
+// applyReservableCheck / checkReservable / loadManualOverrides を import するだけで
+// 実際の台帳更新が走ってしまわないようにするため）
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(err => {
+    console.error('[error]', err.message || err);
+    process.exit(1);
+  });
+}

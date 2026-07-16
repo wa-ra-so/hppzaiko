@@ -1,0 +1,4 @@
+{
+  "note": "誤検出などでアタックリストから手動で除外したい店舗IDをexcludedIdsに追加する（例: \"J004492214\"）。台帳（hotpepper-roster*.json）には残るが、公開用のアタックリスト（hotpepper-reservation-lost*.json / index.html）には表示されなくなる。全県共通（店舗IDはHotPepper全体で一意）。",
+  "excludedIds": []
+}

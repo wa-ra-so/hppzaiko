@@ -1,12 +1,13 @@
-// data/*.json の整合性チェック＋簡易ロジックテスト。Actionsの台帳更新前後で実行し、
-// 壊れたJSONやフォーマット崩れがあれば公開前に検知して止める（新店リサーチ側の
-// test-filters.mjs と同じ「監査してから公開」方針）。
+// ①判定ロジック（applyReservableCheck）の単体テスト、②data/*.json の整合性チェックを行う。
+// Actionsの台帳更新前後で実行し、壊れたJSON・フォーマット崩れ・判定ロジックの劣化が
+// あれば公開前に検知して止める（sinntenn側の test-filters.mjs と同じ「監査してから公開」方針）。
 // 使い方: node scripts/test-data.mjs
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { PREFECTURES } from './prefectures.mjs';
+import { applyReservableCheck, checkReservable } from './hotpepper-roster.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -27,6 +28,119 @@ async function loadJson(file) {
   return JSON.parse(raw); // 壊れたJSONはここで例外→テスト全体を失敗させる
 }
 
+// ── ①判定ロジック単体テスト（2段階確認方式が壊れていないか） ──
+function testApplyReservableCheck() {
+  const T1 = '2026-07-01T00:00:00.000Z';
+  const T2 = '2026-07-01T08:00:00.000Z';
+  const T3 = '2026-07-01T16:00:00.000Z';
+
+  // 初回チェックでfalse＝元々予約なし。疑い・確定どちらにもしない
+  {
+    const { shop, newlyConfirmedLost } = applyReservableCheck({}, false, T1);
+    assert.equal(newlyConfirmedLost, false, '初回false: newlyConfirmedLostはfalse');
+    assert.equal(shop.reservationSuspectedAt, undefined, '初回false: 疑いを立てない');
+    assert.equal(shop.reservationLostAt, undefined, '初回false: 確定しない');
+    assert.equal(shop.reservable, false);
+  }
+
+  // reservable:true → 1回目のfalse検出＝疑いのみ（まだ確定しない）
+  {
+    const prev = { reservable: true, reservableCheckedAt: T1, lastReservableAt: T1 };
+    const { shop, newlyConfirmedLost } = applyReservableCheck(prev, false, T2);
+    assert.equal(newlyConfirmedLost, false, '1回目検出: newlyConfirmedLostはfalse（即確定しない）');
+    assert.equal(shop.reservationSuspectedAt, T2, '1回目検出: reservationSuspectedAtを記録');
+    assert.equal(shop.reservationLostAt, undefined, '1回目検出: reservationLostAtはまだ立てない');
+  }
+
+  // 疑い中 → 2回目も連続してfalse＝確定（アタックリスト入り）
+  {
+    const prev = { reservable: false, reservableCheckedAt: T2, lastReservableAt: T1, reservationSuspectedAt: T2 };
+    const { shop, newlyConfirmedLost } = applyReservableCheck(prev, false, T3);
+    assert.equal(newlyConfirmedLost, true, '2回目検出: newlyConfirmedLostはtrue（確定）');
+    assert.equal(shop.reservationLostAt, T3, '2回目検出: reservationLostAtを記録');
+    assert.equal(shop.reservationSuspectedAt, T2, '2回目検出: reservationSuspectedAt（1回目の日）は保持');
+  }
+
+  // 疑い中に true が確認できた＝誤検出/回復。疑いを解除し確定させない
+  {
+    const prev = { reservable: false, reservableCheckedAt: T2, lastReservableAt: T1, reservationSuspectedAt: T2 };
+    const { shop, newlyConfirmedLost } = applyReservableCheck(prev, true, T3);
+    assert.equal(newlyConfirmedLost, false, '疑い解除: newlyConfirmedLostはfalse');
+    assert.equal(shop.reservationSuspectedAt, undefined, '疑い解除: reservationSuspectedAtを削除');
+    assert.equal(shop.reservable, true);
+    assert.equal(shop.lastReservableAt, T3);
+  }
+
+  // 確定済み（アタックリスト掲載中）の店が true に戻った＝アタックリストから復帰
+  {
+    const prev = { reservable: false, reservableCheckedAt: T2, lastReservableAt: T1, reservationSuspectedAt: T1, reservationLostAt: T2 };
+    const { shop, newlyConfirmedLost } = applyReservableCheck(prev, true, T3);
+    assert.equal(newlyConfirmedLost, false);
+    assert.equal(shop.reservationLostAt, undefined, '復帰: reservationLostAtを削除（アタックリストから外れる）');
+    assert.equal(shop.reservationSuspectedAt, undefined, '復帰: reservationSuspectedAtも削除');
+  }
+
+  // 確定済みの店を再チェックして再びfalse＝確定状態を維持。日付は上書きしない
+  {
+    const prev = { reservable: false, reservableCheckedAt: T2, lastReservableAt: T1, reservationSuspectedAt: T1, reservationLostAt: T2 };
+    const { shop, newlyConfirmedLost } = applyReservableCheck(prev, false, T3);
+    assert.equal(newlyConfirmedLost, false, '確定済み再確認: newlyConfirmedLostはfalse（二重カウントしない）');
+    assert.equal(shop.reservationLostAt, T2, '確定済み再確認: reservationLostAt（確定日）は上書きしない');
+    assert.equal(shop.reservableCheckedAt, T3, '確定済み再確認: reservableCheckedAtだけ更新');
+  }
+
+  ok('applyReservableCheck: 2段階確認ロジックの単体テスト 7/7 パス');
+}
+
+// ── ①'checkReservable単体テスト（title/body二重チェックが壊れていないか） ──
+async function testCheckReservable() {
+  const realFetch = globalThis.fetch;
+  const html = (title, body = '') => `<!DOCTYPE html><html><head><title>${title}</title></head><body>${body}</body></html>`;
+  const mockFetch = (map) => async () => ({ ok: true, text: async () => map });
+
+  try {
+    // タイトルに「ネット予約可」あり → true
+    globalThis.fetch = mockFetch(html('○○店＜ネット予約可＞'));
+    assert.equal(await checkReservable('https://example.test/'), true, 'title有: true');
+
+    // タイトルに無いが本文に不可メッセージあり → false（裏取りできた）
+    globalThis.fetch = mockFetch(html('○○店', '現在ネット予約を受け付けていません'));
+    assert.equal(await checkReservable('https://example.test/'), false, 'title無+body裏取りあり: false');
+
+    // タイトルに無く本文にも不可メッセージが無い（＝仕様変更やbot判定ページの疑い）→ null（誤検出防止）
+    globalThis.fetch = mockFetch(html('○○店', '通常の店舗紹介文'));
+    assert.equal(await checkReservable('https://example.test/'), null, 'title無+body裏取り無し: null（falseと決め打ちしない）');
+
+    // <title>自体が無い（想定外のページ）→ null
+    globalThis.fetch = mockFetch('<html><body>no title here</body></html>');
+    assert.equal(await checkReservable('https://example.test/'), null, 'titleタグ無し: null');
+
+    // HTTPエラー → null
+    globalThis.fetch = async () => ({ ok: false });
+    assert.equal(await checkReservable('https://example.test/'), null, 'HTTPエラー: null');
+
+    // fetch自体が例外 → null
+    globalThis.fetch = async () => { throw new Error('network error'); };
+    assert.equal(await checkReservable('https://example.test/'), null, 'fetch例外: null');
+
+    ok('checkReservable: title/body二重チェックの単体テスト 6/6 パス');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+// ── ②data/*.json の整合性チェック ──
+async function loadExcludedIds() {
+  try {
+    const json = await loadJson('manual-overrides.json');
+    assert.ok(Array.isArray(json.excludedIds), 'manual-overrides.json: excludedIds must be an array');
+    return new Set(json.excludedIds);
+  } catch (err) {
+    fail(`manual-overrides.json: ${err.message}`);
+    return new Set();
+  }
+}
+
 async function checkRoster(pref) {
   const file = pref.dataFile.replace(/^stores/, 'hotpepper-roster');
   const json = await loadJson(file);
@@ -40,18 +154,19 @@ async function checkRoster(pref) {
   for (const field of ['name', 'address', 'firstSeenAt', 'lastSeenAt']) {
     assert.ok(field in sample, `${file}: shop record missing "${field}"`);
   }
-  // reservationLostAt が付いている店は lastSeenAt がなくても構わないが、
-  // reservable=false になっているはず（可否チェック結果と矛盾していないか）
   for (const [id, s] of Object.entries(json.shops)) {
     if (s.reservationLostAt) {
+      // reservationLostAt が付いている店は reservable=false になっているはず
       assert.equal(s.reservable, false, `${file}: shop ${id} has reservationLostAt but reservable !== false`);
+      // 確定（2回目）の前提として1回目の検出日も残っているはず
+      assert.ok(s.reservationSuspectedAt, `${file}: shop ${id} has reservationLostAt but no reservationSuspectedAt (1回目の記録)`);
     }
   }
   ok(`${file}: ${ids.length} 件の台帳を検証`);
   return json;
 }
 
-async function checkLost(pref, roster) {
+async function checkLost(pref, roster, excludedIds) {
   const file = pref.dataFile.replace(/^stores/, 'hotpepper-reservation-lost');
   const json = await loadJson(file);
   assert.equal(json.pref, pref.id, `${file}: pref must be "${pref.id}"`);
@@ -60,20 +175,26 @@ async function checkLost(pref, roster) {
     for (const field of ['id', 'name', 'reservationLostAt']) {
       assert.ok(field in it, `${file}: item missing "${field}"`);
     }
+    assert.ok(!excludedIds.has(it.id), `${file}: item ${it.id} is in manual-overrides excludedIds but still published`);
   }
-  // 軽量抽出版は台帳の reservationLostAt 付き件数と一致していないといけない
+  // 軽量抽出版は「台帳の reservationLostAt 付き件数」から「手動除外件数」を引いたものと一致するはず
   // （hotpepper-roster.mjs が同じ stamp で両方書き出すため）
-  const rosterLostCount = Object.values(roster.shops).filter(s => !!s.reservationLostAt).length;
-  assert.equal(json.items.length, rosterLostCount,
-    `${file}: items.length (${json.items.length}) must match roster reservationLostAt count (${rosterLostCount})`);
+  const rosterLostIds = Object.entries(roster.shops).filter(([, s]) => !!s.reservationLostAt).map(([id]) => id);
+  const expectedCount = rosterLostIds.filter(id => !excludedIds.has(id)).length;
+  assert.equal(json.items.length, expectedCount,
+    `${file}: items.length (${json.items.length}) must match roster reservationLostAt count minus manual overrides (${expectedCount})`);
   ok(`${file}: ${json.items.length} 件のアタックリストを検証（台帳と一致）`);
 }
 
 async function main() {
+  testApplyReservableCheck();
+  await testCheckReservable();
+
+  const excludedIds = await loadExcludedIds();
   for (const pref of Object.values(PREFECTURES)) {
     try {
       const roster = await checkRoster(pref);
-      await checkLost(pref, roster);
+      await checkLost(pref, roster, excludedIds);
     } catch (err) {
       fail(`${pref.id}: ${err.message}`);
     }

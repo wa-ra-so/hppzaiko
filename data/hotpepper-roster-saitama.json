@@ -10144,7 +10144,8 @@
    "reservable": false,
    "reservableCheckedAt": "2026-07-15T22:16:42.470Z",
    "lastReservableAt": "2026-07-15T10:03:42.947Z",
-   "reservationLostAt": "2026-07-15T22:16:42.470Z"
+   "reservationLostAt": "2026-07-15T22:16:42.470Z",
+   "reservationSuspectedAt": "2026-07-15T22:16:42.470Z"
   },
   "J001145330": {
    "name": "居酒屋 雅 Miyabi 西川口店",
@@ -14632,7 +14633,8 @@
    "reservable": false,
    "reservableCheckedAt": "2026-07-16T07:50:36.723Z",
    "lastReservableAt": "2026-07-15T10:03:42.947Z",
-   "reservationLostAt": "2026-07-16T07:50:36.723Z"
+   "reservationLostAt": "2026-07-16T07:50:36.723Z",
+   "reservationSuspectedAt": "2026-07-16T07:50:36.723Z"
   },
   "J001233422": {
    "name": "第一ホルモン",
