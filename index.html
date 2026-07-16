@@ -95,7 +95,6 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
       <div class="app-sub">ホットペッパーのネット予約カレンダーが使えなくなった店舗。1日3回自動更新</div>
     </div>
     <div class="header-meta">
-      <div><a href="./index.html" id="backLink">← 新店リサーチへ</a></div>
       <div>台帳更新: <strong id="updatedAt">—</strong></div>
     </div>
   </div>
@@ -116,7 +115,6 @@ const PREF_ID = Object.prototype.hasOwnProperty.call(PREFS, prefParam) ? prefPar
 const PREF = PREFS[PREF_ID];
 document.title = `${PREF.label} ネット予約不可アタックリスト`;
 document.getElementById('pageTitle').textContent = `${PREF.label} ネット予約不可アタックリスト`;
-document.getElementById('backLink').href = PREF_ID === 'chiba' ? 'https://wa-ra-so.github.io/sinntenn/' : `https://wa-ra-so.github.io/sinntenn/?pref=${PREF_ID}`;
 document.getElementById('prefTabs').innerHTML = Object.entries(PREFS).map(([id, p]) =>
   `<a class="pref-tab${id === PREF_ID ? ' active' : ''}" href="?pref=${id}">${p.label}</a>`).join('');
 
