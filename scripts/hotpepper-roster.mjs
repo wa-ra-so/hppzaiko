@@ -65,6 +65,11 @@ const RESERVE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 const LOST_SURGE_ABS_THRESHOLD = 20;
 const LOST_SURGE_RATIO_THRESHOLD = 0.1; // チェック数に対する割合
 
+// 解約判定に必要な最低観測期間（firstSeenAt〜lastSeenAtの幅）。新規掲載直後の店は
+// 開店準備中のページ変動やAPI取得のブレで一時的に消えて見えることがあり、これを
+// 「解約」と誤判定しないため、一定期間継続して掲載が確認できていた店のみを対象にする。
+const MIN_DELISTED_TENURE_MS = 48 * 60 * 60 * 1000; // 48時間
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function mapWithConcurrency(items, limit, fn) {
@@ -194,6 +199,17 @@ export function applyReservableCheck(shop, result, stamp) {
   };
 }
 
+// 解約と判定してよいだけの観測期間（firstSeenAt〜lastSeenAt）が確保できているか。
+// 新規掲載直後の店を「解約」と誤判定しないための下限チェック（テスト容易化のため分離）。
+// 注意: Date.parse(0) は数値0が文字列"0"としてパースされ2000年扱いになる（NaNにならない）ため、
+// `|| 0` のようなフォールバックは使わず、欠損時は明示的にfalse側へ倒す。
+export function hasMinDelistedTenure(shop) {
+  const first = Date.parse(shop.firstSeenAt);
+  const last = Date.parse(shop.lastSeenAt);
+  if (!Number.isFinite(first) || !Number.isFinite(last)) return false;
+  return (last - first) >= MIN_DELISTED_TENURE_MS;
+}
+
 async function loadRoster() {
   try {
     const json = JSON.parse(await readFile(ROSTER_PATH, 'utf-8'));
@@ -308,9 +324,13 @@ export async function main() {
   // された場合でも取りこぼさないため（前回比較だけだと、消えた直後の1回だけしか検出
   // チャンスが無く、その回に安全弁で中断する等があると永久に見逃してしまう）。
   // 掲載有無チェックは毎日走り信頼度が高いため、ここは2段階確認を経ず即確定する。
+  // ただし新規掲載直後（firstSeenAt〜lastSeenAtがMIN_DELISTED_TENURE_MS未満）の店は対象外にする
+  // ＝開店準備中のページ変動やAPI取得のブレを「解約」と誤判定しないため（一定期間の継続掲載を
+  // 確認できて初めて、消えたことが意味のあるシグナルになる）。
   // 予約可だった店の解約は、従来どおり「予約できなくなった」（reservationLostAt）にも計上する
   // （解約＝当然ネット予約もできなくなるため、予約不可リスト側にも引き続き載せる）。
-  const newlyDelisted = Object.entries(shops).filter(([, s]) => s.lastSeenAt !== stamp && !s.delistedAt);
+  const newlyDelisted = Object.entries(shops).filter(([, s]) =>
+    s.lastSeenAt !== stamp && !s.delistedAt && hasMinDelistedTenure(s));
   const newlyDelistedRecords = [];
   const newlyDelistedLost = [];
   for (const [id, s] of newlyDelisted) {

@@ -17515,8 +17515,7 @@
    "lastSeenAt": "2026-07-15T22:06:52.157Z",
    "url": "https://www.hotpepper.jp/strJ004612133/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-15T10:18:44.364Z",
-   "delistedAt": "2026-07-16T07:26:11.793Z"
+   "reservableCheckedAt": "2026-07-15T10:18:44.364Z"
   },
   "J000973783": {
    "name": "肉の匠 将泰庵 船橋本店",
@@ -48330,8 +48329,7 @@
    "area": "柏",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
    "lastSeenAt": "2026-07-15T02:23:29.832Z",
-   "url": "https://www.hotpepper.jp/strJ000194735/?vos=nhppalsa000016",
-   "delistedAt": "2026-07-16T07:26:11.793Z"
+   "url": "https://www.hotpepper.jp/strJ000194735/?vos=nhppalsa000016"
   },
   "J004536949": {
    "name": "Forchetta matta フォルケッタマッタ",
@@ -58987,8 +58985,7 @@
    "lastSeenAt": "2026-07-15T22:06:52.157Z",
    "url": "https://www.hotpepper.jp/strJ004591159/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-15T22:06:52.157Z",
-   "delistedAt": "2026-07-16T07:26:11.793Z"
+   "reservableCheckedAt": "2026-07-15T22:06:52.157Z"
   },
   "J000729563": {
    "name": "なぎさカフェ 千倉",
@@ -60740,8 +60737,7 @@
    "area": "柏",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
    "lastSeenAt": "2026-07-15T02:23:29.832Z",
-   "url": "https://www.hotpepper.jp/strJ004510132/?vos=nhppalsa000016",
-   "delistedAt": "2026-07-16T07:26:11.793Z"
+   "url": "https://www.hotpepper.jp/strJ004510132/?vos=nhppalsa000016"
   },
   "J001233413": {
    "name": "ビジネスホテル野田 東武バンケットホール",
@@ -60987,5 +60983,5 @@
    "lastReservableAt": "2026-07-16T07:26:11.793Z"
   }
  },
- "delistedCount": 4
+ "delistedCount": 0
 }

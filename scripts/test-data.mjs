@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { PREFECTURES } from './prefectures.mjs';
-import { applyReservableCheck, checkReservable } from './hotpepper-roster.mjs';
+import { applyReservableCheck, checkReservable, hasMinDelistedTenure } from './hotpepper-roster.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -129,6 +129,35 @@ async function testCheckReservable() {
   }
 }
 
+// ── ①''hasMinDelistedTenure単体テスト（新規掲載直後の店を解約と誤判定しないためのゲート） ──
+function testHasMinDelistedTenure() {
+  const hour = 60 * 60 * 1000;
+  const base = Date.parse('2026-07-01T00:00:00.000Z');
+  const iso = (offsetHours) => new Date(base + offsetHours * hour).toISOString();
+
+  // 観測期間が48時間ちょうど未満 → false（新規掲載直後の変動を解約扱いしない）
+  assert.equal(
+    hasMinDelistedTenure({ firstSeenAt: iso(0), lastSeenAt: iso(24) }),
+    false, '観測24時間: 満たさない');
+  assert.equal(
+    hasMinDelistedTenure({ firstSeenAt: iso(0), lastSeenAt: iso(47.9) }),
+    false, '観測47.9時間: 満たさない（境界未満）');
+
+  // 48時間以上 → true
+  assert.equal(
+    hasMinDelistedTenure({ firstSeenAt: iso(0), lastSeenAt: iso(48) }),
+    true, '観測48時間ちょうど: 満たす（境界）');
+  assert.equal(
+    hasMinDelistedTenure({ firstSeenAt: iso(0), lastSeenAt: iso(240) }),
+    true, '観測10日: 満たす');
+
+  // 日付が欠けている（壊れたデータ）→ false側に倒れる（誤って解約確定しない）
+  assert.equal(hasMinDelistedTenure({ lastSeenAt: iso(240) }), false, 'firstSeenAt欠落: false側');
+  assert.equal(hasMinDelistedTenure({ firstSeenAt: iso(0) }), false, 'lastSeenAt欠落: false側');
+
+  ok('hasMinDelistedTenure: 単体テスト 6/6 パス');
+}
+
 // ── ②data/*.json の整合性チェック ──
 async function loadExcludedIds() {
   try {
@@ -160,6 +189,11 @@ async function checkRoster(pref) {
       assert.equal(s.reservable, false, `${file}: shop ${id} has reservationLostAt but reservable !== false`);
       // 確定（2回目）の前提として1回目の検出日も残っているはず
       assert.ok(s.reservationSuspectedAt, `${file}: shop ${id} has reservationLostAt but no reservationSuspectedAt (1回目の記録)`);
+    }
+    if (s.delistedAt) {
+      // 解約と確定している店は最低観測期間（48時間）を満たしているはず
+      // （新規掲載直後の変動を解約と誤判定していないか）
+      assert.ok(hasMinDelistedTenure(s), `${file}: shop ${id} has delistedAt but does not meet the minimum tenure`);
     }
   }
   ok(`${file}: ${ids.length} 件の台帳を検証`);
@@ -196,6 +230,7 @@ async function checkDelisted(pref, roster, excludedIds) {
       assert.ok(field in it, `${file}: item missing "${field}"`);
     }
     assert.ok(!excludedIds.has(it.id), `${file}: item ${it.id} is in manual-overrides excludedIds but still published`);
+    assert.ok(hasMinDelistedTenure(it), `${file}: item ${it.id} does not meet the minimum tenure`);
   }
   // 軽量抽出版は「台帳の delistedAt 付き件数」から「手動除外件数」を引いたものと一致するはず
   const rosterDelistedIds = Object.entries(roster.shops).filter(([, s]) => !!s.delistedAt).map(([id]) => id);
@@ -208,6 +243,7 @@ async function checkDelisted(pref, roster, excludedIds) {
 async function main() {
   testApplyReservableCheck();
   await testCheckReservable();
+  testHasMinDelistedTenure();
 
   const excludedIds = await loadExcludedIds();
   for (const pref of Object.values(PREFECTURES)) {

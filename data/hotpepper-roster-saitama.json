@@ -48661,8 +48661,7 @@
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
    "lastSeenAt": "2026-07-15T22:16:42.470Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-15T14:35:53.546Z",
-   "delistedAt": "2026-07-16T07:50:36.723Z"
+   "reservableCheckedAt": "2026-07-15T14:35:53.546Z"
   },
   "J000806386": {
    "name": "カラオケ館 熊谷店",
@@ -62148,5 +62147,5 @@
    "reservableCheckedAt": "2026-07-15T15:15:49.910Z"
   }
  },
- "delistedCount": 1
+ "delistedCount": 0
 }
