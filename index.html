@@ -157,6 +157,21 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 const fmtDate = (iso) => (iso || '').slice(0, 10);
 const dayMs = 24 * 60 * 60 * 1000;
 
+// 台帳更新時刻（リストがいつ更新されたか）はJST（日本時間）の日付+時刻で表示する。
+// 各店の検出日（reservationLostAt等）は元々日単位の精度しか無いのでfmtDateのままでよいが、
+// 「今このリストがどれだけ新しいか」は分単位まで分かった方が営業が使いやすい
+function jstParts(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  const parts = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+  return parts;
+}
+const fmtDateTime = (iso) => { const p = jstParts(iso); return p ? `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}` : ''; };
+const fmtTime = (iso) => { const p = jstParts(iso); return p ? `${p.hour}:${p.minute}` : ''; };
+
 function withinDays(iso, days) {
   if (!days) return true;
   const t = Date.parse(iso || 0);
@@ -221,7 +236,7 @@ function render() {
     <div class="kpi"><div class="kpi-label">${view.kpiLabel}</div><div class="kpi-value">${data.items.length}<span class="unit">店</span></div><div class="kpi-note">記録開始以降</div></div>
     <div class="kpi"><div class="kpi-label">直近30日</div><div class="kpi-value">${counts.d30}<span class="unit">店</span></div><div class="kpi-note">直近7日: ${counts.d7}店</div></div>
     <div class="kpi"><div class="kpi-label">HP掲載店数（API）</div><div class="kpi-value">${data.activeCount ?? '—'}<span class="unit">店</span></div><div class="kpi-note">サイト検索の件数とは集計基準が異なります</div></div>
-    <div class="kpi"><div class="kpi-label">台帳更新</div><div class="kpi-value" style="font-size:16px;padding-top:8px;">${fmtDate(data.updatedAt)}</div><div class="kpi-note">1日3回（6時/14時/22時ごろ）自動更新</div></div>
+    <div class="kpi"><div class="kpi-label">台帳更新</div><div class="kpi-value" style="font-size:15px;line-height:1.35;padding-top:8px;">${fmtDate(data.updatedAt)}<span class="unit" style="display:block;font-size:13px;margin-left:0;">${fmtTime(data.updatedAt)}</span></div><div class="kpi-note">1日3回（6時/14時/22時ごろ）自動更新</div></div>
   </div>
   <div class="filter-card"><div class="filter-row">
     ${PERIODS.map(p => `<button class="chip ${state.days === p.days ? 'active' : ''}" data-days="${p.days}">${p.label}</button>`).join('')}
@@ -334,7 +349,7 @@ async function load() {
     if (!Array.isArray(DATA.lost.items)) DATA.lost.items = [];
     DATA.delisted = delistedRes.ok ? await delistedRes.json() : { items: [], updatedAt: DATA.lost.updatedAt, activeCount: DATA.lost.activeCount };
     if (!Array.isArray(DATA.delisted.items)) DATA.delisted.items = [];
-    document.getElementById('updatedAt').textContent = fmtDate(DATA.lost.updatedAt) || '—';
+    document.getElementById('updatedAt').textContent = fmtDateTime(DATA.lost.updatedAt) || '—';
     render();
   } catch {
     el.innerHTML = `<div class="empty-state">${esc(PREF.label)}の掲載台帳はまだありません。<br>
