@@ -175,13 +175,16 @@ async function main() {
   }
 
   // ── ネット予約可否チェック（ローテーション） ──
-  // 掲載中の店のうち、未チェック・チェックが古い順に一定数だけ確認する
+  // 掲載中の店のうち、①現在アタックリストに載っている店（予約不可検出済み）を毎回優先的に
+  // 再チェックし、②残り枠は未チェック・チェックが古い店から順に確認する。
+  // ①を優先しないと、予約可能に戻った店が次に選ばれるまで（東京なら最大2週間ほど）
+  // アタックリストに載ったままになってしまう。
   const listedIds = Object.keys(shops).filter(id => shops[id].lastSeenAt === stamp);
-  const checkQueue = listedIds
-    .slice()
-    .sort((a, b) => Date.parse(shops[a].reservableCheckedAt || 0) - Date.parse(shops[b].reservableCheckedAt || 0))
-    .slice(0, RESERVE_CHECK_BATCH);
-  console.log(`[info] ネット予約チェック対象: ${checkQueue.length} 件（掲載中 ${listedIds.length} 件中）`);
+  const byCheckedAtAsc = (a, b) => Date.parse(shops[a].reservableCheckedAt || 0) - Date.parse(shops[b].reservableCheckedAt || 0);
+  const lostIds = listedIds.filter(id => shops[id].reservationLostAt).sort(byCheckedAtAsc);
+  const restIds = listedIds.filter(id => !shops[id].reservationLostAt).sort(byCheckedAtAsc);
+  const checkQueue = [...lostIds, ...restIds].slice(0, RESERVE_CHECK_BATCH);
+  console.log(`[info] ネット予約チェック対象: ${checkQueue.length} 件（掲載中 ${listedIds.length} 件中、アタックリスト優先再チェック ${lostIds.length} 件）`);
 
   const reservationLostNow = [];
   let checkedOk = 0;
