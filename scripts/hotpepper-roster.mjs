@@ -23,6 +23,11 @@
 // 揺れなどで<title>の判定が一時的に狂うケースがあるため（詳細はcheckReservable参照）。
 // ただし掲載自体が終了した場合（掲載有無チェックは毎日走り信頼度が高い）は2段階を経ず即確定する。
 //
+// 解約（掲載自体が終了した店）は、予約可否とは別に delistedAt として理由を問わず全件記録する
+// （未入金による強制解約など、予約機能を使っていなかった店の解約も取りこぼさないため）。
+// gourmet APIの掲載一覧に含まれなくなったことをもって判定するため、<title>スクレイピングより
+// 信頼度が高く、2段階確認は不要。予約可だった店の解約は reservationLostAt にも従来どおり計上する。
+//
 // 使い方: HOTPEPPER_API_KEY=xxx node scripts/hotpepper-roster.mjs --pref=chiba
 // 依存パッケージなし（Node 20+ の組み込み fetch のみ使用）。
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -34,8 +39,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ACTIVE_PREF = getPrefFromArgv();
 // stores.json → hotpepper-roster.json / stores-tokyo.json → hotpepper-roster-tokyo.json
 const ROSTER_PATH = path.join(__dirname, '..', 'data', ACTIVE_PREF.dataFile.replace(/^stores/, 'hotpepper-roster'));
-// attack.html が読む軽量版（予約できなくなった店のみの抽出。台帳本体は大きいため）
+// index.html が読む軽量版（予約できなくなった店のみの抽出。台帳本体は大きいため）
 const LOST_PATH = path.join(__dirname, '..', 'data', ACTIVE_PREF.dataFile.replace(/^stores/, 'hotpepper-reservation-lost'));
+// index.html が読む軽量版（解約＝掲載終了した店のみの抽出。理由（予約可否）を問わず全件）
+const DELISTED_PATH = path.join(__dirname, '..', 'data', ACTIVE_PREF.dataFile.replace(/^stores/, 'hotpepper-delisted'));
 // 誤検出などで手動除外したい店舗IDのリスト（全県共通・店舗IDはHotPepper全体で一意）
 export const MANUAL_OVERRIDES_PATH = path.join(__dirname, '..', 'data', 'manual-overrides.json');
 
@@ -239,6 +246,7 @@ export async function main() {
     } else {
       // reservable系フィールドは維持しつつ、掲載情報だけ更新
       shops[id] = { ...shops[id], ...s, lastSeenAt: stamp };
+      if (shops[id].delistedAt) delete shops[id].delistedAt; // 再掲載＝解約から復帰
     }
   }
 
@@ -294,23 +302,37 @@ export async function main() {
     throw new Error(`newly confirmed reservation-lost surge: ${newlyConfirmedFromCheck} (checked ${checkQueue.length}, threshold ${Math.round(surgeThreshold)}); aborting roster update — possible detection logic breakage`);
   }
 
-  // 掲載終了店（台帳から消えた店）は、予約可だった場合のみ「予約できなくなった」に計上する。
+  // 掲載終了店（今回の取得結果に含まれなかった店）＝解約。理由（予約可否）を問わず、
+  // まだ delistedAt が付いていない店を検出する。「前回からの遷移」ではなく「今回時点で
+  // まだ掲載中と確認できず、かつ未記録」を条件にしているのは、途中の実行が失敗・スキップ
+  // された場合でも取りこぼさないため（前回比較だけだと、消えた直後の1回だけしか検出
+  // チャンスが無く、その回に安全弁で中断する等があると永久に見逃してしまう）。
   // 掲載有無チェックは毎日走り信頼度が高いため、ここは2段階確認を経ず即確定する。
-  const newlyDelisted = Object.entries(shops).filter(([, s]) =>
-    s.lastSeenAt === prev.updatedAt && prev.updatedAt !== '' && prev.updatedAt !== stamp);
+  // 予約可だった店の解約は、従来どおり「予約できなくなった」（reservationLostAt）にも計上する
+  // （解約＝当然ネット予約もできなくなるため、予約不可リスト側にも引き続き載せる）。
+  const newlyDelisted = Object.entries(shops).filter(([, s]) => s.lastSeenAt !== stamp && !s.delistedAt);
+  const newlyDelistedRecords = [];
   const newlyDelistedLost = [];
   for (const [id, s] of newlyDelisted) {
+    shops[id] = { ...s, delistedAt: stamp };
+    newlyDelistedRecords.push(shops[id]);
     if (s.reservable === true) {
-      shops[id] = { ...s, reservable: false, reservationSuspectedAt: s.reservationSuspectedAt || stamp, reservationLostAt: stamp };
+      shops[id] = { ...shops[id], reservable: false, reservationSuspectedAt: s.reservationSuspectedAt || stamp, reservationLostAt: stamp };
       reservationLostNow.push({ id, ...shops[id] });
       newlyDelistedLost.push(shops[id]);
     }
   }
-  if (newlyDelistedLost.length > 0) {
-    console.log(`[info] 今回新たに掲載終了（予約可だった店）: ${newlyDelistedLost.length} 店`);
-    for (const s of newlyDelistedLost) {
-      const range = s.lastReservableAt ? `${s.lastReservableAt.slice(0, 10)} 〜 ${s.reservationLostAt.slice(0, 10)}` : `〜${s.reservationLostAt.slice(0, 10)}`;
-      console.log(`  - ${s.name}（${s.area || s.address}） ${range} ${s.url}`);
+  // 安全弁: API取得の一時的な不調（一部ページだけ欠落等）で大量の店を誤って「解約」と
+  // 判定してしまう可能性がある（current.size < prevActive * 0.5 ほど極端でない中規模の
+  // 欠落を捕捉するための追加の安全弁）
+  const delistedSurgeThreshold = Math.max(LOST_SURGE_ABS_THRESHOLD, prevActive * LOST_SURGE_RATIO_THRESHOLD);
+  if (newlyDelisted.length > delistedSurgeThreshold) {
+    throw new Error(`newly delisted surge: ${newlyDelisted.length} (prev active ${prevActive}, threshold ${Math.round(delistedSurgeThreshold)}); aborting roster update — possible fetch/pagination failure`);
+  }
+  if (newlyDelistedRecords.length > 0) {
+    console.log(`[info] 今回新たに解約（掲載終了）を検出: ${newlyDelistedRecords.length} 店（うち予約可だった店 ${newlyDelistedLost.length} 店）`);
+    for (const s of newlyDelistedRecords) {
+      console.log(`  - ${s.name}（${s.area || s.address}） 最終掲載確認: ${(s.lastSeenAt || '').slice(0, 10)} → 解約検出: ${s.delistedAt.slice(0, 10)} ${s.url}`);
     }
   }
 
@@ -328,9 +350,14 @@ export async function main() {
     .filter(([, s]) => !!s.reservationLostAt)
     .map(([id, s]) => ({ id, ...s }))
     .sort((a, b) => (a.reservationLostAt < b.reservationLostAt ? 1 : -1));
+  const delistedAllRaw = Object.entries(shops)
+    .filter(([, s]) => !!s.delistedAt)
+    .map(([id, s]) => ({ id, ...s }))
+    .sort((a, b) => (a.delistedAt < b.delistedAt ? 1 : -1));
   // 手動除外（誤検出などをdata/manual-overrides.jsonでピンポイントに外す）。
-  // 台帳（ROSTER_PATH）には残し、公開用のアタックリスト（LOST_PATH）からのみ除外する
+  // 台帳（ROSTER_PATH）には残し、公開用のリスト（LOST_PATH/DELISTED_PATH）からのみ除外する
   const reservationLostAll = reservationLostAllRaw.filter(s => !excludedIds.has(s.id));
+  const delistedAll = delistedAllRaw.filter(s => !excludedIds.has(s.id));
   const excludedCount = reservationLostAllRaw.length - reservationLostAll.length;
 
   await mkdir(path.dirname(ROSTER_PATH), { recursive: true });
@@ -339,6 +366,7 @@ export async function main() {
     pref: ACTIVE_PREF.id,
     activeCount: current.size,
     reservationLostCount: reservationLostAllRaw.length,
+    delistedCount: delistedAllRaw.length,
     shops,
   }, null, 1));
   // アタックリスト画面（index.html）用の軽量抽出
@@ -348,8 +376,15 @@ export async function main() {
     activeCount: current.size,
     items: reservationLostAll,
   }, null, 1));
-  console.log(`[info] 台帳更新: 掲載中 ${current.size} / 新規 ${added} / 予約不可(累計) ${reservationLostAllRaw.length}（手動除外 ${excludedCount}） / 疑い中 ${listedIds.filter(id => shops[id].reservationSuspectedAt && !shops[id].reservationLostAt).length} / 掃除 ${pruned}`);
-  console.log(`[info] wrote ${ROSTER_PATH} / ${LOST_PATH}`);
+  // 解約（掲載終了）リスト画面（index.html）用の軽量抽出
+  await writeFile(DELISTED_PATH, JSON.stringify({
+    updatedAt: stamp,
+    pref: ACTIVE_PREF.id,
+    activeCount: current.size,
+    items: delistedAll,
+  }, null, 1));
+  console.log(`[info] 台帳更新: 掲載中 ${current.size} / 新規 ${added} / 予約不可(累計) ${reservationLostAllRaw.length}（手動除外 ${excludedCount}） / 解約(累計) ${delistedAllRaw.length} / 疑い中 ${listedIds.filter(id => shops[id].reservationSuspectedAt && !shops[id].reservationLostAt).length} / 掃除 ${pruned}`);
+  console.log(`[info] wrote ${ROSTER_PATH} / ${LOST_PATH} / ${DELISTED_PATH}`);
 }
 
 // このファイルが直接実行された場合のみ main() を走らせる（test-data.mjs から

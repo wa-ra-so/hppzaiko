@@ -186,6 +186,25 @@ async function checkLost(pref, roster, excludedIds) {
   ok(`${file}: ${json.items.length} 件のアタックリストを検証（台帳と一致）`);
 }
 
+async function checkDelisted(pref, roster, excludedIds) {
+  const file = pref.dataFile.replace(/^stores/, 'hotpepper-delisted');
+  const json = await loadJson(file);
+  assert.equal(json.pref, pref.id, `${file}: pref must be "${pref.id}"`);
+  assert.ok(Array.isArray(json.items), `${file}: items must be an array`);
+  for (const it of json.items) {
+    for (const field of ['id', 'name', 'delistedAt', 'lastSeenAt']) {
+      assert.ok(field in it, `${file}: item missing "${field}"`);
+    }
+    assert.ok(!excludedIds.has(it.id), `${file}: item ${it.id} is in manual-overrides excludedIds but still published`);
+  }
+  // 軽量抽出版は「台帳の delistedAt 付き件数」から「手動除外件数」を引いたものと一致するはず
+  const rosterDelistedIds = Object.entries(roster.shops).filter(([, s]) => !!s.delistedAt).map(([id]) => id);
+  const expectedCount = rosterDelistedIds.filter(id => !excludedIds.has(id)).length;
+  assert.equal(json.items.length, expectedCount,
+    `${file}: items.length (${json.items.length}) must match roster delistedAt count minus manual overrides (${expectedCount})`);
+  ok(`${file}: ${json.items.length} 件の解約リストを検証（台帳と一致）`);
+}
+
 async function main() {
   testApplyReservableCheck();
   await testCheckReservable();
@@ -195,6 +214,7 @@ async function main() {
     try {
       const roster = await checkRoster(pref);
       await checkLost(pref, roster, excludedIds);
+      await checkDelisted(pref, roster, excludedIds);
     } catch (err) {
       fail(`${pref.id}: ${err.message}`);
     }

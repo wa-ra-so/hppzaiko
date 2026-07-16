@@ -1,0 +1,31 @@
+{
+ "updatedAt": "2026-07-16T07:47:59.932Z",
+ "pref": "kanagawa",
+ "activeCount": 9748,
+ "items": [
+  {
+   "id": "J004090425",
+   "name": "Club Merry クラブメリー",
+   "address": "神奈川県小田原市栄町２-７-１０ ホテルとざんコンフォート小田原 1F",
+   "genre": "韓国料理",
+   "area": "小田原",
+   "url": "https://www.hotpepper.jp/strJ004090425/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:56:07.680Z",
+   "lastSeenAt": "2026-07-15T22:14:33.115Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-15T14:34:07.278Z",
+   "delistedAt": "2026-07-16T07:47:59.932Z"
+  },
+  {
+   "id": "J001295509",
+   "name": "ステーキハウス ビリーザキッド 川崎店",
+   "address": "神奈川県川崎市幸区南幸町１-7 クレストビル1F",
+   "genre": "洋食",
+   "area": "川崎",
+   "url": "https://www.hotpepper.jp/strJ001295509/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:56:07.680Z",
+   "lastSeenAt": "2026-07-15T22:14:33.115Z",
+   "delistedAt": "2026-07-16T07:47:59.932Z"
+  }
+ ]
+}

@@ -8,6 +8,7 @@
   "scripts": {
     "roster": "node scripts/hotpepper-roster.mjs",
     "list-lost": "node scripts/list-reservation-lost.mjs",
+    "list-delisted": "node scripts/list-delisted.mjs",
     "test": "node scripts/test-data.mjs"
   }
 }
