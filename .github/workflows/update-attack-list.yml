@@ -1,0 +1,74 @@
+name: アタックリストの自動更新
+
+on:
+  schedule:
+    # 1日3回実行（ホットペッパーのネット予約チェックのローテーションを速めるため）。
+    # 21:00 UTC=06:00 JST / 5:00 UTC=14:00 JST / 13:00 UTC=22:00 JST
+    - cron: '0 21,5,13 * * *'
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hotpepper-roster.mjs'
+      - 'scripts/prefectures.mjs'
+      - 'scripts/test-data.mjs'
+      - '.github/workflows/update-attack-list.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-roster:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 台帳更新前のデータ監査（前回コミットのdata/が壊れていないか）
+      - name: Test data (before)
+        run: node scripts/test-data.mjs
+
+      # 4県分を順に更新。1県が失敗しても他県は続行する
+      # （HOTPEPPER_API_KEY未設定時はスキップされ、既存data/はそのまま残る）
+      - name: Update HotPepper roster (chiba)
+        run: node scripts/hotpepper-roster.mjs --pref=chiba || echo "::warning::HotPepper roster update failed (chiba)"
+        env:
+          HOTPEPPER_API_KEY: ${{ secrets.HOTPEPPER_API_KEY }}
+
+      - name: Update HotPepper roster (tokyo)
+        run: node scripts/hotpepper-roster.mjs --pref=tokyo || echo "::warning::HotPepper roster update failed (tokyo)"
+        env:
+          HOTPEPPER_API_KEY: ${{ secrets.HOTPEPPER_API_KEY }}
+
+      - name: Update HotPepper roster (kanagawa)
+        run: node scripts/hotpepper-roster.mjs --pref=kanagawa || echo "::warning::HotPepper roster update failed (kanagawa)"
+        env:
+          HOTPEPPER_API_KEY: ${{ secrets.HOTPEPPER_API_KEY }}
+
+      - name: Update HotPepper roster (saitama)
+        run: node scripts/hotpepper-roster.mjs --pref=saitama || echo "::warning::HotPepper roster update failed (saitama)"
+        env:
+          HOTPEPPER_API_KEY: ${{ secrets.HOTPEPPER_API_KEY }}
+
+      # 更新後のデータ監査。壊れていればコミットしない（安全側に倒れる）
+      - name: Test data (after)
+        run: node scripts/test-data.mjs
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "chore: アタックリストを自動更新 ($(date -u +%Y-%m-%dT%H:%M) UTC)"
+            git push
+          fi

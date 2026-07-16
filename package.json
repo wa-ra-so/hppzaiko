@@ -1,0 +1,13 @@
+{
+  "name": "hppzaiko",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "roster": "node scripts/hotpepper-roster.mjs",
+    "list-lost": "node scripts/list-reservation-lost.mjs",
+    "test": "node scripts/test-data.mjs"
+  }
+}
