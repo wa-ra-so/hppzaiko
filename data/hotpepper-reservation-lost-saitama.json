@@ -1,8 +1,23 @@
 {
- "updatedAt": "2026-07-17T10:57:19.451Z",
+ "updatedAt": "2026-07-17T14:46:42.537Z",
  "pref": "saitama",
  "activeCount": 5329,
  "items": [
+  {
+   "id": "J000689896",
+   "name": "ジョイサウンド JOYSOUND 大宮東口店",
+   "address": "埼玉県さいたま市大宮区宮町１－４９大宮カルチャーセンター６Ｆ",
+   "genre": "カラオケ・パーティ",
+   "area": "大宮駅",
+   "url": "https://www.hotpepper.jp/strJ000689896/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:59:02.414Z",
+   "lastSeenAt": "2026-07-17T14:46:42.537Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-17T14:46:42.537Z",
+   "lastReservableAt": "2026-07-15T14:35:53.546Z",
+   "reservationSuspectedAt": "2026-07-17T10:57:19.451Z",
+   "reservationLostAt": "2026-07-17T14:46:42.537Z"
+  },
   {
    "id": "J000178843",
    "name": "松与志",
@@ -11,9 +26,9 @@
    "area": "与野",
    "url": "https://www.hotpepper.jp/strJ000178843/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-17T10:57:19.451Z",
+   "lastSeenAt": "2026-07-17T14:46:42.537Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-17T10:57:19.451Z",
+   "reservableCheckedAt": "2026-07-17T14:46:42.537Z",
    "lastReservableAt": "2026-07-15T13:35:44.358Z",
    "reservationSuspectedAt": "2026-07-17T07:30:22.605Z",
    "reservationLostAt": "2026-07-17T08:36:18.432Z"
@@ -26,9 +41,9 @@
    "area": "川口駅",
    "url": "https://www.hotpepper.jp/strJ004492214/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-17T10:57:19.451Z",
+   "lastSeenAt": "2026-07-17T14:46:42.537Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-17T10:57:19.451Z",
+   "reservableCheckedAt": "2026-07-17T14:46:42.537Z",
    "lastReservableAt": "2026-07-15T10:03:42.947Z",
    "reservationLostAt": "2026-07-15T22:16:42.470Z",
    "reservationSuspectedAt": "2026-07-15T22:16:42.470Z"
