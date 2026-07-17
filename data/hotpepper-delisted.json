@@ -1,6 +1,72 @@
 {
- "updatedAt": "2026-07-17T00:14:13.937Z",
+ "updatedAt": "2026-07-17T07:12:36.840Z",
  "pref": "chiba",
- "activeCount": 5225,
- "items": []
+ "activeCount": 5220,
+ "items": [
+  {
+   "id": "J001226090",
+   "name": "囲 千葉駅前店",
+   "address": "千葉県千葉市中央区富士見２－14－6　LHビル千葉中央4F",
+   "genre": "居酒屋",
+   "area": "千葉駅",
+   "firstSeenAt": "2026-07-14T21:49:45.409Z",
+   "lastSeenAt": "2026-07-17T00:14:13.937Z",
+   "url": "https://www.hotpepper.jp/strJ001226090/?vos=nhppalsa000016",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-15T22:06:52.157Z",
+   "delistedAt": "2026-07-17T07:12:36.840Z"
+  },
+  {
+   "id": "J003851358",
+   "name": "囲 kakoi 千葉駅前店",
+   "address": "千葉県千葉市中央区富士見２丁目14－6LHビル千葉中央4F",
+   "genre": "居酒屋",
+   "area": "千葉駅",
+   "firstSeenAt": "2026-07-14T21:49:45.409Z",
+   "lastSeenAt": "2026-07-17T00:14:13.937Z",
+   "url": "https://www.hotpepper.jp/strJ003851358/?vos=nhppalsa000016",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-15T15:05:57.055Z",
+   "delistedAt": "2026-07-17T07:12:36.840Z"
+  },
+  {
+   "id": "J001281988",
+   "name": "囲 千葉駅前店",
+   "address": "千葉県千葉市中央区富士見２－１４－６　LHビル千葉中央4F",
+   "genre": "居酒屋",
+   "area": "千葉駅",
+   "firstSeenAt": "2026-07-14T21:49:45.409Z",
+   "lastSeenAt": "2026-07-17T00:14:13.937Z",
+   "url": "https://www.hotpepper.jp/strJ001281988/?vos=nhppalsa000016",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-15T15:05:57.055Z",
+   "delistedAt": "2026-07-17T07:12:36.840Z"
+  },
+  {
+   "id": "J001281982",
+   "name": "囲 kakoi 千葉駅前店",
+   "address": "千葉県千葉市中央区富士見２－14－6　LHビル千葉中央4F",
+   "genre": "居酒屋",
+   "area": "千葉駅",
+   "firstSeenAt": "2026-07-14T21:49:45.409Z",
+   "lastSeenAt": "2026-07-17T00:14:13.937Z",
+   "url": "https://www.hotpepper.jp/strJ001281982/?vos=nhppalsa000016",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-15T15:05:57.055Z",
+   "delistedAt": "2026-07-17T07:12:36.840Z"
+  },
+  {
+   "id": "J003851393",
+   "name": "囲 千葉駅前店",
+   "address": "千葉県千葉市中央区富士見２丁目１４－６　LHビル千葉中央4F",
+   "genre": "居酒屋",
+   "area": "千葉駅",
+   "firstSeenAt": "2026-07-14T21:49:45.409Z",
+   "lastSeenAt": "2026-07-17T00:14:13.937Z",
+   "url": "https://www.hotpepper.jp/strJ003851393/?vos=nhppalsa000016",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-15T14:27:59.091Z",
+   "delistedAt": "2026-07-17T07:12:36.840Z"
+  }
+ ]
 }
