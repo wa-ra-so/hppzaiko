@@ -197,13 +197,39 @@ function ddSummary(label, val) {
   return `<summary class="${val ? 'dd-active' : ''}">${label}: <span class="dd-val">${esc(val || 'すべて')}</span> <span class="dd-arrow">▼</span></summary>`;
 }
 
+// 同じ物理店舗がホットペッパー上で複数の店舗ID（表記ゆれ・過去の再登録等）を持っている
+// ケースがあり、住所ベースで束ねないと同じ店が何件も営業リードとして重複表示されてしまう。
+// 住所文字列の表記ゆれ（全角/半角数字・スペース有無・「丁目」表記）を吸収して同一店舗を判定する。
+function normalizeAddress(addr) {
+  return String(addr || '')
+    .replace(/[\s　]/g, '')
+    .replace(/丁目/g, '-')
+    .replace(/[－ー―]/g, '-')
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+}
+
+// 期間・エリア等でフィルタ済みのitemsを住所で束ねてグループ化する。
+// group.primary は最新の検出日を持つ代表店、group.items は束ねた全件（重複掲載を含む）
+function groupByAddress(items, dateField) {
+  const map = new Map();
+  for (const it of items) {
+    const key = normalizeAddress(it.address) || `id:${it.id}`; // 住所が無い場合は束ねない
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(it);
+  }
+  return [...map.values()].map(members => {
+    const sorted = [...members].sort((a, b) => (a[dateField] < b[dateField] ? 1 : -1));
+    return { items: sorted, primary: sorted[0], date: sorted[0][dateField] };
+  }).sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
 function updateHeaderChrome() {
   const view = VIEWS[state.view];
   document.title = `${PREF.label} ${view.label}アタックリスト`;
   document.getElementById('pageTitle').textContent = `${PREF.label} ${view.label}アタックリスト`;
   document.getElementById('appSub').textContent = `${view.subLabel}。1日3回自動更新`;
   document.getElementById('viewTabs').innerHTML = Object.entries(VIEWS).map(([id, v]) => {
-    const count = (DATA[id] && DATA[id].items) ? DATA[id].items.length : null;
+    const count = (DATA[id] && DATA[id].items) ? groupByAddress(DATA[id].items, v.dateField).length : null;
     return `<button class="view-tab${id === state.view ? ' active' : ''}" data-view="${id}">${v.label}${count === null ? '' : `<span class="view-tab-count">(${count})</span>`}</button>`;
   }).join('');
   document.querySelectorAll('#viewTabs [data-view]').forEach(b => b.onclick = () => {
@@ -224,17 +250,20 @@ function render() {
   const view = VIEWS[state.view];
   const dateField = view.dateField;
   const items = filtered();
+  const groups = groupByAddress(items, dateField);
+  const groupedAll = groupByAddress(data.items, dateField);
   const counts = {
-    d7:  data.items.filter(it => withinDays(it[dateField], 7)).length,
-    d30: data.items.filter(it => withinDays(it[dateField], 30)).length,
+    d7:  groupedAll.filter(g => withinDays(g.date, 7)).length,
+    d30: groupedAll.filter(g => withinDays(g.date, 30)).length,
   };
   const areas  = [...new Set(data.items.map(it => it.area).filter(Boolean))].sort();
   const genres = [...new Set(data.items.map(it => it.genre).filter(Boolean))].sort();
+  const dupCount = items.length - groups.length;
 
   el.innerHTML = `
   <div class="kpi-row">
-    <div class="kpi"><div class="kpi-label">${view.kpiLabel}</div><div class="kpi-value">${data.items.length}<span class="unit">店</span></div><div class="kpi-note">記録開始以降</div></div>
-    <div class="kpi"><div class="kpi-label">直近30日</div><div class="kpi-value">${counts.d30}<span class="unit">店</span></div><div class="kpi-note">直近7日: ${counts.d7}店</div></div>
+    <div class="kpi"><div class="kpi-label">${view.kpiLabel}</div><div class="kpi-value">${groupedAll.length}<span class="unit">軒</span></div><div class="kpi-note">記録開始以降（同一住所は1軒に集約）</div></div>
+    <div class="kpi"><div class="kpi-label">直近30日</div><div class="kpi-value">${counts.d30}<span class="unit">軒</span></div><div class="kpi-note">直近7日: ${counts.d7}軒</div></div>
     <div class="kpi"><div class="kpi-label">HP掲載店数（API）</div><div class="kpi-value">${data.activeCount ?? '—'}<span class="unit">店</span></div><div class="kpi-note">サイト検索の件数とは集計基準が異なります</div></div>
     <div class="kpi"><div class="kpi-label">台帳更新</div><div class="kpi-value" style="font-size:15px;line-height:1.35;padding-top:8px;">${fmtDate(data.updatedAt)}<span class="unit" style="display:block;font-size:13px;margin-left:0;">${fmtTime(data.updatedAt)}</span></div><div class="kpi-note">1日3回（6時/14時/22時ごろ）自動更新</div></div>
   </div>
@@ -250,10 +279,10 @@ function render() {
     <button class="csv-btn" id="csvBtn">CSV保存</button>
     <button class="clear-btn" id="clearBtn">クリア</button>
   </div></div>
-  <div class="result-count">${items.length} 店を表示</div>
-  ${items.length === 0
+  <div class="result-count">${groups.length} 軒を表示${dupCount > 0 ? `（同一住所の重複掲載 ${dupCount} 件を集約済み）` : ''}</div>
+  ${groups.length === 0
     ? `<div class="empty-state">条件に合う${esc(view.emptyLabel)}はありません。<br>台帳の記録は 2026-07-14 開始で、全店舗を数日かけて順にチェックするため、検出には少し時間がかかります。</div>`
-    : `<div class="list-card">${items.map(state.view === 'delisted' ? rowDelisted : rowLost).join('')}</div>`}
+    : `<div class="list-card">${groups.map(state.view === 'delisted' ? rowDelisted : rowLost).join('')}</div>`}
   `;
 
   el.querySelectorAll('[data-days]').forEach(b => b.onclick = () => { state.days = +b.dataset.days; render(); });
@@ -263,12 +292,20 @@ function render() {
   q.oninput = () => { state.q = q.value; clearTimeout(q._t); q._t = setTimeout(render, 250); };
   q.onkeydown = (e) => { if (e.key === 'Enter') { state.q = q.value; render(); } };
   el.querySelector('#clearBtn').onclick = () => { Object.assign(state, { days: 90, area: '', genre: '', q: '' }); render(); };
-  el.querySelector('#csvBtn').onclick = () => downloadCsv(items);
+  el.querySelector('#csvBtn').onclick = () => downloadCsv(groups);
   // 検索欄はフォーカスを保つ（再描画後）
   if (state.q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
 }
 
-function rowLost(it) {
+// 住所グループに束ねた店（重複掲載）が2件以上あるときの注記行
+function dupNote(group) {
+  if (group.items.length <= 1) return '';
+  const others = group.items.slice(1).map(o => esc(o.name)).join(' / ');
+  return `<div class="tag-row"><span class="tag tag-listed">同一住所に${group.items.length}件の掲載（重複掲載の可能性）: ${others}</span></div>`;
+}
+
+function rowLost(group) {
+  const it = group.primary;
   const d = fmtDate(it.reservationLostAt);
   const suspected = fmtDate(it.reservationSuspectedAt) || d;
   const lastOk = fmtDate(it.lastReservableAt);
@@ -293,11 +330,13 @@ function rowLost(it) {
       </div>
       <div class="tag-row"><span class="tag tag-listed">${rangeLabel}（数日おきのチェックのため正確な日は不明）</span></div>
       <div class="tag-row"><span class="tag tag-listed">${confirmLabel}</span></div>
+      ${dupNote(group)}
     </div>
   </div>`;
 }
 
-function rowDelisted(it) {
+function rowDelisted(group) {
+  const it = group.primary;
   const d = fmtDate(it.delistedAt);
   const lastSeen = fmtDate(it.lastSeenAt);
   const statusTag = it.reservationLostAt ? '解約前からネット予約も不可だった' : '予約状況は不明のまま解約';
@@ -316,19 +355,20 @@ function rowDelisted(it) {
         <span class="tag tag-listed">${esc(statusTag)}</span>
       </div>
       <div class="tag-row"><span class="tag tag-listed">最終掲載確認: ${lastSeen} → 解約検出: ${d}（掲載有無チェックは毎日走るため、日単位で正確です）</span></div>
+      ${dupNote(group)}
     </div>
   </div>`;
 }
 
-function downloadCsv(items) {
+function downloadCsv(groups) {
   const escCsv = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const cols = state.view === 'delisted'
-    ? ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'ホットペッパーURL']
-    : ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', 'ホットペッパーURL'];
+    ? ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', '同一住所の重複掲載件数', 'ホットペッパーURL']
+    : ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', '同一住所の重複掲載件数', 'ホットペッパーURL'];
   const toRow = state.view === 'delisted'
-    ? (it) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastSeenAt), fmtDate(it.delistedAt), it.reservationLostAt ? 'ネット予約も不可だった' : '不明', it.url || `https://www.hotpepper.jp/str${it.id}/`]
-    : (it) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastReservableAt), fmtDate(it.reservationSuspectedAt) || fmtDate(it.reservationLostAt), fmtDate(it.reservationLostAt), it.url || `https://www.hotpepper.jp/str${it.id}/`];
-  const rows = [cols.map(escCsv).join(',')].concat(items.map(it => toRow(it).map(escCsv).join(',')));
+    ? (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastSeenAt), fmtDate(it.delistedAt), it.reservationLostAt ? 'ネット予約も不可だった' : '不明', n, it.url || `https://www.hotpepper.jp/str${it.id}/`]
+    : (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastReservableAt), fmtDate(it.reservationSuspectedAt) || fmtDate(it.reservationLostAt), fmtDate(it.reservationLostAt), n, it.url || `https://www.hotpepper.jp/str${it.id}/`];
+  const rows = [cols.map(escCsv).join(',')].concat(groups.map(g => toRow(g.primary, g.items.length).map(escCsv).join(',')));
   const blob = new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
