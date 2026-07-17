@@ -21,7 +21,7 @@
 | `scripts/list-reservation-lost.mjs` | 台帳からネット予約不可店をCLI表示・CSV出力するヘルパー |
 | `scripts/list-delisted.mjs` | 台帳から解約（掲載終了）店をCLI表示・CSV出力するヘルパー |
 | `scripts/test-data.mjs` | `data/*.json` の整合性チェック（台帳更新の前後でActionsから実行） |
-| `.github/workflows/update-attack-list.yml` | 1日3回（6:00/14:00/22:00 JST頃）自動実行（Actionsのcron） |
+| `.github/workflows/update-attack-list.yml` | 1日3回自動実行（Actionsのcron。実際の実行時刻はActions側の混雑状況でずれることがある） |
 | `data/hotpepper-roster*.json` | 県ごとの掲載台帳（自動コミット） |
 | `data/hotpepper-reservation-lost*.json` | 台帳から抽出したネット予約不可店（確定分）のみの軽量版（`index.html` が読む） |
 | `data/hotpepper-delisted*.json` | 台帳から抽出した解約（掲載終了）店のみの軽量版（`index.html` が読む） |

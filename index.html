@@ -265,7 +265,7 @@ function render() {
     <div class="kpi"><div class="kpi-label">${view.kpiLabel}</div><div class="kpi-value">${groupedAll.length}<span class="unit">軒</span></div><div class="kpi-note">記録開始以降（同一住所は1軒に集約）</div></div>
     <div class="kpi"><div class="kpi-label">直近30日</div><div class="kpi-value">${counts.d30}<span class="unit">軒</span></div><div class="kpi-note">直近7日: ${counts.d7}軒</div></div>
     <div class="kpi"><div class="kpi-label">HP掲載店数（API）</div><div class="kpi-value">${data.activeCount ?? '—'}<span class="unit">店</span></div><div class="kpi-note">サイト検索の件数とは集計基準が異なります</div></div>
-    <div class="kpi"><div class="kpi-label">台帳更新</div><div class="kpi-value" style="font-size:15px;line-height:1.35;padding-top:8px;">${fmtDate(data.updatedAt)}<span class="unit" style="display:block;font-size:13px;margin-left:0;">${fmtTime(data.updatedAt)}</span></div><div class="kpi-note">1日3回（6時/14時/22時ごろ）自動更新</div></div>
+    <div class="kpi"><div class="kpi-label">台帳更新</div><div class="kpi-value" style="font-size:15px;line-height:1.35;padding-top:8px;">${fmtDate(data.updatedAt)}<span class="unit" style="display:block;font-size:13px;margin-left:0;">${fmtTime(data.updatedAt)}</span></div><div class="kpi-note">1日3回自動更新</div></div>
   </div>
   <div class="filter-card"><div class="filter-row">
     ${PERIODS.map(p => `<button class="chip ${state.days === p.days ? 'active' : ''}" data-days="${p.days}">${p.label}</button>`).join('')}
