@@ -97,7 +97,7 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
     <div class="app-icon">📞</div>
     <div>
       <div class="app-title" id="pageTitle">予約不可アタックリスト</div>
-      <div class="app-sub" id="appSub">ホットペッパーのネット予約カレンダーが使えなくなった店舗。1日3回自動更新</div>
+      <div class="app-sub" id="appSub">ホットペッパーのネット予約カレンダーが使えなくなった店舗。1日6回自動更新</div>
     </div>
     <div class="header-meta">
       <div>台帳更新: <strong id="updatedAt">—</strong></div>
@@ -227,7 +227,7 @@ function updateHeaderChrome() {
   const view = VIEWS[state.view];
   document.title = `${PREF.label} ${view.label}アタックリスト`;
   document.getElementById('pageTitle').textContent = `${PREF.label} ${view.label}アタックリスト`;
-  document.getElementById('appSub').textContent = `${view.subLabel}。1日3回自動更新`;
+  document.getElementById('appSub').textContent = `${view.subLabel}。1日6回自動更新`;
   document.getElementById('viewTabs').innerHTML = Object.entries(VIEWS).map(([id, v]) => {
     const count = (DATA[id] && DATA[id].items) ? groupByAddress(DATA[id].items, v.dateField).length : null;
     return `<button class="view-tab${id === state.view ? ' active' : ''}" data-view="${id}">${v.label}${count === null ? '' : `<span class="view-tab-count">(${count})</span>`}</button>`;
@@ -265,7 +265,7 @@ function render() {
     <div class="kpi"><div class="kpi-label">${view.kpiLabel}</div><div class="kpi-value">${groupedAll.length}<span class="unit">軒</span></div><div class="kpi-note">記録開始以降（同一住所は1軒に集約）</div></div>
     <div class="kpi"><div class="kpi-label">直近30日</div><div class="kpi-value">${counts.d30}<span class="unit">軒</span></div><div class="kpi-note">直近7日: ${counts.d7}軒</div></div>
     <div class="kpi"><div class="kpi-label">HP掲載店数（API）</div><div class="kpi-value">${data.activeCount ?? '—'}<span class="unit">店</span></div><div class="kpi-note">サイト検索の件数とは集計基準が異なります</div></div>
-    <div class="kpi"><div class="kpi-label">台帳更新</div><div class="kpi-value" style="font-size:15px;line-height:1.35;padding-top:8px;">${fmtDate(data.updatedAt)}<span class="unit" style="display:block;font-size:13px;margin-left:0;">${fmtTime(data.updatedAt)}</span></div><div class="kpi-note">1日3回自動更新</div></div>
+    <div class="kpi"><div class="kpi-label">台帳更新</div><div class="kpi-value" style="font-size:15px;line-height:1.35;padding-top:8px;">${fmtDate(data.updatedAt)}<span class="unit" style="display:block;font-size:13px;margin-left:0;">${fmtTime(data.updatedAt)}</span></div><div class="kpi-note">1日6回自動更新</div></div>
   </div>
   <div class="filter-card"><div class="filter-row">
     ${PERIODS.map(p => `<button class="chip ${state.days === p.days ? 'active' : ''}" data-days="${p.days}">${p.label}</button>`).join('')}
@@ -393,7 +393,7 @@ async function load() {
     render();
   } catch {
     el.innerHTML = `<div class="empty-state">${esc(PREF.label)}の掲載台帳はまだありません。<br>
-      台帳は1日3回の自動更新で作成されます（記録開始: 2026-07-15）。</div>`;
+      台帳は1日6回の自動更新で作成されます（記録開始: 2026-07-15）。</div>`;
   }
 }
 load();
