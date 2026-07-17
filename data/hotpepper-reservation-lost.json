@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-07-17T14:26:20.509Z",
+ "updatedAt": "2026-07-17T17:58:22.791Z",
  "pref": "chiba",
  "activeCount": 5220,
  "items": [
@@ -10,10 +10,10 @@
    "genre": "その他グルメ",
    "area": "清水公園",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-17T14:26:20.509Z",
+   "lastSeenAt": "2026-07-17T17:58:22.791Z",
    "url": "https://www.hotpepper.jp/strJ001279736/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-17T14:26:20.509Z",
+   "reservableCheckedAt": "2026-07-17T17:58:22.791Z",
    "lastReservableAt": "2026-07-15T14:08:23.830Z",
    "reservationSuspectedAt": "2026-07-17T07:12:36.840Z",
    "reservationLostAt": "2026-07-17T08:14:13.279Z"
