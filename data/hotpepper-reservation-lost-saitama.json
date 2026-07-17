@@ -1,8 +1,23 @@
 {
- "updatedAt": "2026-07-17T07:30:22.605Z",
+ "updatedAt": "2026-07-17T08:36:18.432Z",
  "pref": "saitama",
  "activeCount": 5329,
  "items": [
+  {
+   "id": "J000178843",
+   "name": "松与志",
+   "address": "埼玉県さいたま市浦和区上木崎１－９－１５グランデュオ南街区１０２",
+   "genre": "居酒屋",
+   "area": "与野",
+   "url": "https://www.hotpepper.jp/strJ000178843/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:59:02.414Z",
+   "lastSeenAt": "2026-07-17T08:36:18.432Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-17T08:36:18.432Z",
+   "lastReservableAt": "2026-07-15T13:35:44.358Z",
+   "reservationSuspectedAt": "2026-07-17T07:30:22.605Z",
+   "reservationLostAt": "2026-07-17T08:36:18.432Z"
+  },
   {
    "id": "J004492214",
    "name": "ダイナーナンバーセブン",
@@ -11,9 +26,9 @@
    "area": "川口駅",
    "url": "https://www.hotpepper.jp/strJ004492214/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-17T07:30:22.605Z",
+   "lastSeenAt": "2026-07-17T08:36:18.432Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-17T07:30:22.605Z",
+   "reservableCheckedAt": "2026-07-17T08:36:18.432Z",
    "lastReservableAt": "2026-07-15T10:03:42.947Z",
    "reservationLostAt": "2026-07-15T22:16:42.470Z",
    "reservationSuspectedAt": "2026-07-15T22:16:42.470Z"
