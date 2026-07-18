@@ -58,7 +58,12 @@ export const MANUAL_OVERRIDES_PATH = path.join(__dirname, '..', 'data', 'manual-
 const HOTPEPPER_API_KEY = process.env.HOTPEPPER_API_KEY || '';
 const API_BASE = 'https://webservice.recruit.co.jp/hotpepper';
 const PAGE_SIZE = 100;          // APIの最大件数
-const MAX_PAGES = 300;          // 暴走防止（100件×300=3万件まで）
+// 暴走防止用の上限（100件×1000=10万件まで）。実際にどこかの県がこれに到達することは
+// 想定していない（真の安全弁）。旧MAX_PAGES=300（3万件まで）は東京都の実件数がこれを
+// 超えており、毎回ちょうど3万件で無言のまま打ち切られ、3万件より後ろの店が「取得できな
+// かった店」として扱われて誤って解約判定される事故を起こしていた（2026-07-18発覚）。
+// 上限に達した場合は下のwarningで必ず気づけるようにしてある
+const MAX_PAGES = 1000;
 const PAGE_INTERVAL_MS = 200;   // ページ間の待機（API負荷への配慮）
 const KEEP_DAYS = 400;          // 掲載終了店を台帳に残す日数（掃除用）
 
@@ -119,7 +124,8 @@ async function fetchAllShops(largeAreas) {
   const shops = new Map(); // id -> shop
   for (const area of largeAreas) {
     let start = 1;
-    for (let page = 0; page < MAX_PAGES; page++) {
+    let page = 0;
+    for (; page < MAX_PAGES; page++) {
       const results = await apiGet('gourmet', {
         large_area: area.code, count: String(PAGE_SIZE), start: String(start),
       });
@@ -138,6 +144,12 @@ async function fetchAllShops(largeAreas) {
       start += batch.length;
       if (batch.length === 0 || start > available) break;
       await sleep(PAGE_INTERVAL_MS);
+    }
+    // for が自然breakせずMAX_PAGESを使い切った＝まだ続きがあるのに打ち切った可能性が高い。
+    // 黙って切り捨てると、切り捨てられた店が「見えなくなった店」として誤って解約判定
+    // されてしまう（実際に東京都でMAX_PAGES=300のとき発生した）ため、必ず目立つ警告を出す
+    if (page >= MAX_PAGES) {
+      console.log(`::warning::${area.name}(${area.code}): MAX_PAGES（${MAX_PAGES}）に到達し取得を打ち切りました。実際の掲載件数が上限を超えている可能性が高く、以降このエリアの店が誤って解約判定される恐れがあります。MAX_PAGESの引き上げを検討してください`);
     }
     console.log(`[info] ${area.name}(${area.code}): 累計 ${shops.size} 店`);
   }
