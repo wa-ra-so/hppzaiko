@@ -1,6 +1,55 @@
 {
- "updatedAt": "2026-07-18T04:04:36.582Z",
+ "updatedAt": "2026-07-18T07:09:21.783Z",
  "pref": "kanagawa",
- "activeCount": 9743,
- "items": []
+ "activeCount": 9738,
+ "items": [
+  {
+   "id": "J003872004",
+   "name": "鎌倉ふくみ",
+   "address": "神奈川県鎌倉市扇ガ谷１丁目１－２９　２階",
+   "genre": "和食",
+   "area": "鎌倉駅",
+   "url": "https://www.hotpepper.jp/strJ003872004/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:56:07.680Z",
+   "lastSeenAt": "2026-07-18T04:04:36.582Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-16T07:47:59.932Z",
+   "lastReservableAt": "2026-07-16T07:47:59.932Z",
+   "delistedAt": "2026-07-18T07:09:21.783Z",
+   "reservationSuspectedAt": "2026-07-18T07:09:21.783Z",
+   "reservationLostAt": "2026-07-18T07:09:21.783Z"
+  },
+  {
+   "id": "J003763513",
+   "name": "めしや ハヤマ倶楽部 横浜",
+   "address": "神奈川県横浜市神奈川区鶴屋町２-13-11 シープラザ横浜4F",
+   "genre": "居酒屋",
+   "area": "横浜駅",
+   "url": "https://www.hotpepper.jp/strJ003763513/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:56:07.680Z",
+   "lastSeenAt": "2026-07-18T04:04:36.582Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-17T10:54:58.207Z",
+   "lastReservableAt": "2026-07-17T10:54:58.207Z",
+   "delistedAt": "2026-07-18T07:09:21.783Z",
+   "reservationSuspectedAt": "2026-07-18T07:09:21.783Z",
+   "reservationLostAt": "2026-07-18T07:09:21.783Z"
+  },
+  {
+   "id": "J003763515",
+   "name": "海鮮居酒屋 はまの家 横浜西口店",
+   "address": "神奈川県横浜市神奈川区鶴屋町２-23-8 ルポビル2F",
+   "genre": "居酒屋",
+   "area": "横浜駅",
+   "url": "https://www.hotpepper.jp/strJ003763515/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:56:07.680Z",
+   "lastSeenAt": "2026-07-18T04:04:36.582Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-17T10:54:58.207Z",
+   "lastReservableAt": "2026-07-17T10:54:58.207Z",
+   "delistedAt": "2026-07-18T07:09:21.783Z",
+   "reservationSuspectedAt": "2026-07-18T07:09:21.783Z",
+   "reservationLostAt": "2026-07-18T07:09:21.783Z"
+  }
+ ]
 }

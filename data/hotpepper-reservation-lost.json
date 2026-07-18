@@ -1,7 +1,7 @@
 {
- "updatedAt": "2026-07-18T03:49:07.451Z",
+ "updatedAt": "2026-07-18T06:54:51.809Z",
  "pref": "chiba",
- "activeCount": 5220,
+ "activeCount": 5218,
  "items": [
   {
    "id": "J001279736",
@@ -16,7 +16,8 @@
    "reservableCheckedAt": "2026-07-17T21:43:18.896Z",
    "lastReservableAt": "2026-07-15T14:08:23.830Z",
    "reservationSuspectedAt": "2026-07-17T07:12:36.840Z",
-   "reservationLostAt": "2026-07-17T08:14:13.279Z"
+   "reservationLostAt": "2026-07-17T08:14:13.279Z",
+   "delistedAt": "2026-07-18T06:54:51.809Z"
   }
  ]
 }

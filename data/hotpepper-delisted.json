@@ -1,8 +1,37 @@
 {
- "updatedAt": "2026-07-18T03:49:07.451Z",
+ "updatedAt": "2026-07-18T06:54:51.809Z",
  "pref": "chiba",
- "activeCount": 5220,
+ "activeCount": 5218,
  "items": [
+  {
+   "id": "J001279736",
+   "name": "あさひ散道イッチ",
+   "address": "千葉県野田市清水422-7",
+   "genre": "その他グルメ",
+   "area": "清水公園",
+   "firstSeenAt": "2026-07-14T21:49:45.409Z",
+   "lastSeenAt": "2026-07-18T03:49:07.451Z",
+   "url": "https://www.hotpepper.jp/strJ001279736/?vos=nhppalsa000016",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-17T21:43:18.896Z",
+   "lastReservableAt": "2026-07-15T14:08:23.830Z",
+   "reservationSuspectedAt": "2026-07-17T07:12:36.840Z",
+   "reservationLostAt": "2026-07-17T08:14:13.279Z",
+   "delistedAt": "2026-07-18T06:54:51.809Z"
+  },
+  {
+   "id": "J001262552",
+   "name": "じげもんちゃんぽん 松戸店",
+   "address": "千葉県松戸市松戸１３０７ー１  アジアンフードガーデン キテミテマツド10Ｆ",
+   "genre": "ラーメン",
+   "area": "アトレ松戸",
+   "firstSeenAt": "2026-07-14T21:49:45.409Z",
+   "lastSeenAt": "2026-07-18T03:49:07.451Z",
+   "url": "https://www.hotpepper.jp/strJ001262552/?vos=nhppalsa000016",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-17T07:12:36.840Z",
+   "delistedAt": "2026-07-18T06:54:51.809Z"
+  },
   {
    "id": "J001226090",
    "name": "囲 千葉駅前店",
