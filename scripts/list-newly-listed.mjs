@@ -7,7 +7,7 @@
 //   node scripts/list-newly-listed.mjs --pref=chiba --days=30  # 期間を変更
 //   node scripts/list-newly-listed.mjs --pref=chiba --csv=newly-listed.csv  # CSVも書き出す
 //
-// APIキー不要（台帳を読むだけ）。台帳は scripts/hotpepper-roster.mjs が1日6回更新する。
+// APIキー不要（台帳を読むだけ）。台帳は scripts/hotpepper-roster.mjs が1日24回更新する。
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
