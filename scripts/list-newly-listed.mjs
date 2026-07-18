@@ -1,10 +1,11 @@
-// 掲載台帳（data/hotpepper-roster*.json）から「解約（掲載自体が終了）した店」を
-// 理由（予約可否）を問わず出力する。data/manual-overrides.json で手動除外された店は含めない。
+// 掲載台帳（data/hotpepper-roster*.json）から「新しくホットペッパーに掲載され、ネット予約も
+// 使える店」を出力する。予約不可・解約の逆で、新規開拓の営業リードとして使う。
+// data/manual-overrides.json で手動除外された店は含めない。
 //
 // 使い方:
-//   node scripts/list-delisted.mjs --pref=chiba            # 直近90日を表示
-//   node scripts/list-delisted.mjs --pref=chiba --days=30  # 期間を変更
-//   node scripts/list-delisted.mjs --pref=chiba --csv=delisted-list.csv  # CSVも書き出す
+//   node scripts/list-newly-listed.mjs --pref=chiba            # 直近90日を表示
+//   node scripts/list-newly-listed.mjs --pref=chiba --days=30  # 期間を変更
+//   node scripts/list-newly-listed.mjs --pref=chiba --csv=newly-listed.csv  # CSVも書き出す
 //
 // APIキー不要（台帳を読むだけ）。台帳は scripts/hotpepper-roster.mjs が1日24回更新する。
 import { readFile, writeFile } from 'node:fs/promises';
@@ -41,35 +42,32 @@ async function main() {
   const excludedIds = await loadManualOverrides();
   const cutoff = Date.now() - DAYS * 24 * 60 * 60 * 1000;
 
-  const delisted = Object.entries(shops)
-    .filter(([id, s]) => s.delistedAt && Date.parse(s.delistedAt) >= cutoff && !excludedIds.has(id))
+  const newlyListed = Object.entries(shops)
+    .filter(([id, s]) => s.newlyListedAt && s.reservable === true && Date.parse(s.newlyListedAt) >= cutoff && !excludedIds.has(id))
     .map(([id, s]) => ({
       id,
       name: s.name,
       address: s.address,
       genre: s.genre,
       area: s.area,
-      lastSeenOn: fmtDate(s.lastSeenAt),
-      delistedOn: fmtDate(s.delistedAt),
-      hadReservation: !!s.reservationLostAt,
+      listedOn: fmtDate(s.newlyListedAt),
       url: s.url || `https://www.hotpepper.jp/str${id}/`,
     }))
-    .sort((a, b) => (a.delistedOn < b.delistedOn ? 1 : -1));
+    .sort((a, b) => (a.listedOn < b.listedOn ? 1 : -1));
 
-  console.log(`■ ${ACTIVE_PREF.name} 解約（掲載終了）した店（直近${DAYS}日 / 台帳更新: ${fmtDate(updatedAt)}）`);
-  console.log(`  該当: ${delisted.length} 店\n`);
-  for (const s of delisted) {
+  console.log(`■ ${ACTIVE_PREF.name} 新規掲載（ネット予約可）の店（直近${DAYS}日 / 台帳更新: ${fmtDate(updatedAt)}）`);
+  console.log(`  該当: ${newlyListed.length} 店\n`);
+  for (const s of newlyListed) {
     console.log(`・${s.name}${s.genre ? `（${s.genre}）` : ''}`);
     console.log(`   ${s.address}`);
-    console.log(`   最終掲載確認: ${s.lastSeenOn} → 解約検出: ${s.delistedOn}（この日付はホットペッパー側の掲載消失に気づいた日です。実際の閉店日ではなく、掲載が閉店後もホットペッパー側にしばらく残っていた場合はそれより前に閉店している可能性があります）`);
-    console.log(`   解約前の予約状況: ${s.hadReservation ? 'ネット予約も不可だった' : '不明'} / ページ: ${s.url}`);
+    console.log(`   新規掲載検出: ${s.listedOn}（全件チェックは実行のたびに走るため、実際の掲載開始とのズレは運用間隔程度です） / ページ: ${s.url}`);
   }
 
   if (CSV_PATH) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'ホットペッパーURL'].map(esc).join(','),
-      ...delisted.map(s => [s.name, s.genre, s.area, s.address, s.lastSeenOn, s.delistedOn, s.hadReservation ? 'ネット予約も不可だった' : '不明', s.url].map(esc).join(',')),
+      ['店名', 'ジャンル', 'エリア', '住所', '新規掲載検出日', 'ホットペッパーURL'].map(esc).join(','),
+      ...newlyListed.map(s => [s.name, s.genre, s.area, s.address, s.listedOn, s.url].map(esc).join(',')),
     ];
     // Excelで文字化けしないようBOM付きUTF-8で出力
     await writeFile(CSV_PATH, '\uFEFF' + rows.join('\r\n'));

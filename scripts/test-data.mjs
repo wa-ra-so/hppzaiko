@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { PREFECTURES } from './prefectures.mjs';
-import { applyReservableCheck, checkReservable, hasMinDelistedTenure } from './hotpepper-roster.mjs';
+import { applyReservableCheck, checkReservable, hasMinDelistedTenure, isBootstrapRun } from './hotpepper-roster.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -158,6 +158,14 @@ function testHasMinDelistedTenure() {
   ok('hasMinDelistedTenure: 単体テスト 6/6 パス');
 }
 
+// ── ①'''isBootstrapRun単体テスト（初回起動時の一括登録を新規掲載として誤検出しないためのゲート） ──
+function testIsBootstrapRun() {
+  assert.equal(isBootstrapRun(''), true, '台帳が空文字（初回起動）: true');
+  assert.equal(isBootstrapRun(undefined), true, '台帳がundefined: true');
+  assert.equal(isBootstrapRun('2026-07-14T21:49:45.409Z'), false, '台帳に既存のupdatedAtあり: false');
+  ok('isBootstrapRun: 単体テスト 3/3 パス');
+}
+
 // ── ②data/*.json の整合性チェック ──
 async function loadExcludedIds() {
   try {
@@ -194,6 +202,10 @@ async function checkRoster(pref) {
       // 解約と確定している店は最低観測期間（48時間）を満たしているはず
       // （新規掲載直後の変動を解約と誤判定していないか）
       assert.ok(hasMinDelistedTenure(s), `${file}: shop ${id} has delistedAt but does not meet the minimum tenure`);
+    }
+    if (s.newlyListedAt) {
+      // newlyListedAtはfirstSeenAtと同時に一度だけ記録される値のはず
+      assert.equal(s.newlyListedAt, s.firstSeenAt, `${file}: shop ${id} newlyListedAt must equal firstSeenAt`);
     }
   }
   ok(`${file}: ${ids.length} 件の台帳を検証`);
@@ -240,10 +252,34 @@ async function checkDelisted(pref, roster, excludedIds) {
   ok(`${file}: ${json.items.length} 件の解約リストを検証（台帳と一致）`);
 }
 
+async function checkNewlyListed(pref, roster, excludedIds) {
+  const file = pref.dataFile.replace(/^stores/, 'hotpepper-newly-listed');
+  const json = await loadJson(file);
+  assert.equal(json.pref, pref.id, `${file}: pref must be "${pref.id}"`);
+  assert.ok(Array.isArray(json.items), `${file}: items must be an array`);
+  for (const it of json.items) {
+    for (const field of ['id', 'name', 'newlyListedAt']) {
+      assert.ok(field in it, `${file}: item missing "${field}"`);
+    }
+    assert.ok(!excludedIds.has(it.id), `${file}: item ${it.id} is in manual-overrides excludedIds but still published`);
+    assert.equal(it.reservable, true, `${file}: item ${it.id} has newlyListedAt but reservable !== true`);
+  }
+  // 軽量抽出版は「台帳の newlyListedAt かつ reservable:true 件数」から「手動除外件数」を
+  // 引いたものと一致するはず
+  const rosterNewlyListedIds = Object.entries(roster.shops)
+    .filter(([, s]) => !!s.newlyListedAt && s.reservable === true)
+    .map(([id]) => id);
+  const expectedCount = rosterNewlyListedIds.filter(id => !excludedIds.has(id)).length;
+  assert.equal(json.items.length, expectedCount,
+    `${file}: items.length (${json.items.length}) must match roster newlyListedAt+reservable count minus manual overrides (${expectedCount})`);
+  ok(`${file}: ${json.items.length} 件の新規掲載リストを検証（台帳と一致）`);
+}
+
 async function main() {
   testApplyReservableCheck();
   await testCheckReservable();
   testHasMinDelistedTenure();
+  testIsBootstrapRun();
 
   const excludedIds = await loadExcludedIds();
   for (const pref of Object.values(PREFECTURES)) {
@@ -251,6 +287,7 @@ async function main() {
       const roster = await checkRoster(pref);
       await checkLost(pref, roster, excludedIds);
       await checkDelisted(pref, roster, excludedIds);
+      await checkNewlyListed(pref, roster, excludedIds);
     } catch (err) {
       fail(`${pref.id}: ${err.message}`);
     }
