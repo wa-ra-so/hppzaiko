@@ -86,8 +86,12 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
 .tag-genre{background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0;}
 .tag-listed{background:var(--bg);color:var(--mid);border:1px solid var(--faint);font-weight:500;}
 
+.snapshot-details{margin-top:6px;}
+.snapshot-details summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--blue);user-select:none;}
+.snapshot-details summary::-webkit-details-marker{display:none;}
+.snapshot-details summary .toggle-arrow{font-size:8px;color:var(--light);display:inline-block;}
+.snapshot-details[open] summary .toggle-arrow{transform:rotate(180deg);}
 .snapshot-box{margin-top:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--faint);border-radius:8px;font-size:11px;color:var(--mid);line-height:1.7;}
-.snapshot-box .snapshot-label{font-weight:700;color:var(--ink);font-size:10px;margin-bottom:2px;}
 .snapshot-box .snapshot-row strong{color:var(--ink);font-weight:600;margin-right:4px;}
 
 .empty-state{background:var(--white);border:1px dashed var(--faint);border-radius:var(--radius);padding:40px 20px;text-align:center;color:var(--mid);font-size:13px;line-height:1.8;}
@@ -360,7 +364,8 @@ function rowLost(group) {
 }
 
 // 解約前に最後に確認できた店舗情報（catch/budget/open/close/access）。ページ自体は
-// もう見られないため、架電・商談時の参考情報としてまとめて表示する
+// もう見られないため架電・商談時の参考情報になるが、リストの一覧性を保つため常時表示
+// はせず、タップ（<details>）で開くまでは畳んでおく
 function delistedSnapshot(it) {
   const rows = [
     it.catch && `<div class="snapshot-row"><strong>キャッチ:</strong> ${esc(it.catch)}</div>`,
@@ -369,7 +374,10 @@ function delistedSnapshot(it) {
     it.access && `<div class="snapshot-row"><strong>アクセス:</strong> ${esc(it.access)}</div>`,
   ].filter(Boolean);
   if (rows.length === 0) return '';
-  return `<div class="snapshot-box"><div class="snapshot-label">解約前の最終確認情報（架電・商談の参考に）</div>${rows.join('')}</div>`;
+  return `<details class="snapshot-details">
+    <summary>解約前の店舗情報を見る<span class="toggle-arrow">▼</span></summary>
+    <div class="snapshot-box">${rows.join('')}</div>
+  </details>`;
 }
 
 function rowDelisted(group) {
