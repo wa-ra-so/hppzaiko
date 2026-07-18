@@ -24,22 +24,7 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
 }
 .app{max-width:960px;margin:0 auto;padding:28px 16px 80px;}
 
-/* ヘッダーは半透明の「素材」として最上部に固定し、下のコンテンツはその下を
-   スクロールして通り抜ける（Apple系UIのフローティングナビの定石）。透明度を
-   下げたい設定（prefers-reduced-transparency）ではブラーを外し不透明に倒す */
-.app-header{
-  margin:-28px -16px 18px;padding:16px 16px 14px;
-  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-  position:sticky;top:0;z-index:40;
-  background:rgba(244,246,250,.72);
-  backdrop-filter:blur(20px) saturate(180%);
-  -webkit-backdrop-filter:blur(20px) saturate(180%);
-  border-top:1px solid rgba(255,255,255,.5); /* 素材の上端に光が当たっている表現 */
-  border-bottom:1px solid rgba(30,41,59,.07);
-}
-@media (prefers-reduced-transparency: reduce){
-  .app-header{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;}
-}
+.app-header{margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
 .app-icon{width:42px;height:42px;background:var(--red);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;}
 .app-title{font-size:19px;font-weight:700;letter-spacing:-.02em;}
 .app-sub{font-size:11.5px;color:var(--mid);margin-top:2px;}
