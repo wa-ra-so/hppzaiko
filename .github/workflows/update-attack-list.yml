@@ -75,6 +75,10 @@ jobs:
       - name: Test data (after)
         run: node scripts/test-data.mjs
 
+      # 1回の実行は15〜20分かかるため、実行中にPRマージなど（このワークフロー経由でない
+      # 直接のpush）でmainが進むと、最後のpushがfast-forwardできず拒否されて丸ごと失敗する
+      # （2026-07-18に2回発生・確認済み）。concurrency設定は本ワークフロー同士の重複しか
+      # 防げないため、ここでは pull --rebase してから再push するリトライで対処する
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
@@ -82,7 +86,16 @@ jobs:
           git add data/
           if git diff --cached --quiet; then
             echo "No changes"
-          else
-            git commit -m "chore: アタックリストを自動更新 ($(date -u +%Y-%m-%dT%H:%M) UTC)"
-            git push
+            exit 0
           fi
+          git commit -m "chore: アタックリストを自動更新 ($(date -u +%Y-%m-%dT%H:%M) UTC)"
+          for i in 1 2 3 4 5; do
+            if git push; then
+              exit 0
+            fi
+            echo "::warning::push rejected (attempt ${i}); rebasing onto latest main and retrying"
+            git pull --rebase origin main
+            sleep $((i * 5))
+          done
+          echo "::error::push failed after retries"
+          exit 1
