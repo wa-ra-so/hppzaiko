@@ -3,6 +3,9 @@
 //
 // 台帳には店舗IDごとに firstSeenAt/lastSeenAt（掲載確認日）に加えて、
 // reservable（ネット予約可否）と reservableCheckedAt を記録する。
+// catch/budget/open/close/access（キャッチコピー・予算・営業時間・定休日・アクセス）は
+// 掲載中の最新値で毎回上書きするため、解約後は「解約前に最後に確認できた店舗情報」として
+// 残る（解約リストで架電・商談の参考情報として表示する）。
 //
 // ネット予約可否はグルメサーチAPIにフィールドが無いため、店舗ページ本体を取得し
 // <title> タグの「＜ネット予約可＞」表記の有無で判定する（実ページで確認済み。
@@ -139,6 +142,14 @@ async function fetchAllShops(largeAreas) {
           genre: (s.genre && s.genre.name) || '',
           area: (s.small_area && s.small_area.name) || (s.middle_area && s.middle_area.name) || '',
           url: (s.urls && s.urls.pc) || `https://www.hotpepper.jp/str${s.id}/`,
+          // 解約後は店舗ページ自体が見られなくなるため、掲載中に取得できるこれらの情報は
+          // 毎回上書き保存しておく。解約検出時点でその店の「最後に確認できた姿」として
+          // 公開用リストに残り、架電・商談時の参考情報になる
+          catch: s.catch || '',
+          budget: (s.budget && (s.budget.average || s.budget.name)) || '',
+          open: s.open || '',
+          close: s.close || '',
+          access: s.access || '',
         });
       }
       start += batch.length;
