@@ -32,17 +32,24 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
 .header-meta strong{color:var(--mid);font-weight:600;}
 .header-meta a{color:var(--blue);text-decoration:none;font-weight:600;}
 .header-meta a:hover{text-decoration:underline;}
-.pref-tabs{display:flex;gap:4px;background:var(--white);border:1px solid var(--faint);border-radius:8px;padding:3px;}
-.pref-tab{font-size:11.5px;font-weight:600;color:var(--mid);text-decoration:none;padding:4px 10px;border-radius:6px;white-space:nowrap;transition:background .15s var(--ease),color .15s var(--ease),transform .15s var(--ease);}
-.pref-tab:hover{background:var(--blue-pale);color:var(--blue);}
+.pref-tabs{display:flex;gap:4px;background:var(--white);border:1px solid var(--faint);border-radius:8px;padding:3px;position:relative;}
+.pref-tab{position:relative;z-index:1;font-size:11.5px;font-weight:600;color:var(--mid);text-decoration:none;padding:4px 10px;border-radius:6px;white-space:nowrap;transition:color .2s var(--ease),transform .15s var(--ease);}
+.pref-tab:hover:not(.active){background:var(--blue-pale);color:var(--blue);}
 .pref-tab:active{transform:scale(.94);}
-.pref-tab.active{background:var(--red);color:#fff;}
-.view-tabs{display:flex;gap:6px;margin-bottom:14px;}
-.view-tab{font-size:12.5px;font-weight:700;color:var(--mid);background:var(--white);border:1.5px solid var(--faint);border-radius:8px;padding:8px 16px;cursor:pointer;font-family:inherit;transition:border-color .15s var(--ease),background .15s var(--ease),color .15s var(--ease),transform .1s var(--ease);}
-.view-tab:hover{border-color:var(--light);}
+.pref-tab.active{color:#fff;}
+.view-tabs{display:flex;gap:6px;margin-bottom:14px;position:relative;}
+.view-tab{position:relative;z-index:1;font-size:12.5px;font-weight:700;color:var(--mid);background:var(--white);border:1.5px solid var(--faint);border-radius:8px;padding:8px 16px;cursor:pointer;font-family:inherit;transition:border-color .15s var(--ease),color .15s var(--ease),transform .1s var(--ease);}
+.view-tab:hover:not(.active){border-color:var(--light);}
 .view-tab:active{transform:scale(.96);}
-.view-tab.active{background:var(--red);border-color:var(--red);color:#fff;}
+.view-tab.active{border-color:transparent;color:#fff;}
 .view-tab .view-tab-count{font-weight:500;opacity:.85;margin-left:3px;}
+/* タブの選択インジケーター（ヌルッと動く「ピル」）。タブ自身の背景ではなく、
+   アクティブなタブの位置・サイズに合わせてこの共有要素をスライドさせることで
+   切り替え時に連続したモーションになる。z-index:0でタブのラベルの下に敷く */
+.tab-pill{position:absolute;left:0;top:0;background:var(--red);z-index:0;pointer-events:none;transition:transform .35s var(--ease),width .35s var(--ease),height .35s var(--ease);}
+.tab-pill.no-anim{transition:none;}
+.pref-tabs .tab-pill{border-radius:6px;}
+.view-tabs .tab-pill{border-radius:8px;}
 
 .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;animation:materialize .3s var(--ease) both;}
 @media(max-width:640px){.kpi-row{grid-template-columns:1fr 1fr;}}
@@ -137,8 +144,8 @@ const PREFS = {
   saitama:  { label: '埼玉県' },
 };
 const prefParam = new URLSearchParams(location.search).get('pref');
-const PREF_ID = Object.prototype.hasOwnProperty.call(PREFS, prefParam) ? prefParam : 'chiba';
-const PREF = PREFS[PREF_ID];
+let PREF_ID = Object.prototype.hasOwnProperty.call(PREFS, prefParam) ? prefParam : 'chiba';
+let PREF = PREFS[PREF_ID];
 
 // kind: 'reservation-lost' | 'delisted' | 'newly-listed'。ファイル名は千葉のみ従来URL互換でサフィックス無し
 const dataFileName = (kind) => PREF_ID === 'chiba' ? `hotpepper-${kind}.json` : `hotpepper-${kind}-${PREF_ID}.json`;
@@ -194,8 +201,72 @@ const state = { view: VIEW_BY_SLUG[viewParam] || 'lost', days: 90, area: '', gen
 let DATA = { lost: null, delisted: null, newlyListed: null };
 
 const viewQuery = (view) => VIEWS[view].slug ? `&view=${VIEWS[view].slug}` : '';
-document.getElementById('prefTabs').innerHTML = Object.entries(PREFS).map(([id, p]) =>
-  `<a class="pref-tab${id === PREF_ID ? ' active' : ''}" href="?pref=${id}${viewQuery(state.view)}">${p.label}</a>`).join('');
+
+// タブの選択インジケーター（ピル）をアクティブな要素の位置・サイズへ移動する。
+// instant=trueのときはトランジション無しで一旦置いてから元に戻す（初回表示時に
+// 0地点からスライドインして見える事故を防ぐ）
+function positionPill(container, activeEl, instant) {
+  let pill = container.querySelector('.tab-pill');
+  if (!pill) {
+    pill = document.createElement('span');
+    pill.className = 'tab-pill';
+    pill.setAttribute('aria-hidden', 'true');
+    container.appendChild(pill);
+  }
+  if (!activeEl) { pill.style.opacity = '0'; return; }
+  pill.style.opacity = '1';
+  if (instant) pill.classList.add('no-anim');
+  pill.style.width = `${activeEl.offsetWidth}px`;
+  pill.style.height = `${activeEl.offsetHeight}px`;
+  pill.style.transform = `translate(${activeEl.offsetLeft}px, ${activeEl.offsetTop}px)`;
+  if (instant) {
+    void pill.offsetWidth; // 強制リフロー：上の位置を無トランジションで確定させてから解除する
+    pill.classList.remove('no-anim');
+  }
+}
+
+function buildPrefTabs() {
+  const el = document.getElementById('prefTabs');
+  el.innerHTML = Object.entries(PREFS).map(([id, p]) =>
+    `<a class="pref-tab" data-pref="${id}" href="?pref=${id}${viewQuery(state.view)}">${p.label}</a>`).join('');
+  el.querySelectorAll('[data-pref]').forEach(a => a.onclick = (e) => {
+    e.preventDefault();
+    if (a.dataset.pref !== PREF_ID) switchPref(a.dataset.pref);
+  });
+  updatePrefTabsActive(true);
+}
+
+function updatePrefTabsActive(instant) {
+  const el = document.getElementById('prefTabs');
+  el.querySelectorAll('[data-pref]').forEach(a => a.classList.toggle('active', a.dataset.pref === PREF_ID));
+  positionPill(el, el.querySelector('.pref-tab.active'), instant);
+}
+
+// 県切り替えを<a href>によるページ全体の再読み込みではなくfetchでの差し替えにする。
+// ページが丸ごと作り直されると、その間のDOMが消えてしまいピルのスライドアニメーションを
+// 見せる余地が無くなる（要素が破棄されると"移動"ではなく"消えて現れる"になってしまう）ため
+async function switchPref(id) {
+  if (id === PREF_ID) return;
+  PREF_ID = id;
+  PREF = PREFS[PREF_ID];
+  const url = new URL(location.href);
+  url.searchParams.set('pref', PREF_ID);
+  history.pushState(null, '', url);
+  updatePrefTabsActive(false);
+  await load();
+}
+
+// ブラウザの戻る/進むで県・ビューが変わった場合もSPA的に反映する
+window.addEventListener('popstate', () => {
+  const p = new URLSearchParams(location.search);
+  PREF_ID = Object.prototype.hasOwnProperty.call(PREFS, p.get('pref')) ? p.get('pref') : 'chiba';
+  PREF = PREFS[PREF_ID];
+  state.view = VIEW_BY_SLUG[p.get('view')] || 'lost';
+  updatePrefTabsActive(false);
+  load();
+});
+
+buildPrefTabs();
 
 // 台帳更新時刻（リストがいつ更新されたか）はJST（日本時間）の日付+時刻で表示する。
 // 各店の検出日（reservationLostAt等）は元々日単位の精度しか無いのでfmtDateのままでよいが、
@@ -263,22 +334,42 @@ function groupByAddress(items, dateField) {
   }).sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
-function updateHeaderChrome() {
-  const view = VIEWS[state.view];
-  document.title = `${PREF.label} ${view.label}アタックリスト`;
-  document.getElementById('pageTitle').textContent = `${PREF.label} ${view.label}アタックリスト`;
-  document.getElementById('appSub').textContent = `${view.subLabel}。自動更新`;
-  document.getElementById('viewTabs').innerHTML = Object.entries(VIEWS).map(([id, v]) => {
+// ビューの件数（バッジの数字）はDATAがロードされた時点で決まり、期間・エリア等の
+// フィルタでは変わらないため、タブボタン自体は読み込みごとに1回だけ作ればよい。
+// ここを毎回のrender()で作り直していると、要素が毎回破棄・再生成されてしまい
+// ピルのスライドアニメーションを見せる相手（連続した同じ要素）が無くなってしまう
+function buildViewTabs() {
+  const el = document.getElementById('viewTabs');
+  el.innerHTML = Object.entries(VIEWS).map(([id, v]) => {
     const count = (DATA[id] && DATA[id].items) ? groupByAddress(DATA[id].items, v.dateField).length : null;
-    return `<button class="view-tab${id === state.view ? ' active' : ''}" data-view="${id}">${v.label}${count === null ? '' : `<span class="view-tab-count">(${count})</span>`}</button>`;
+    return `<button class="view-tab" data-view="${id}">${v.label}${count === null ? '' : `<span class="view-tab-count">(${count})</span>`}</button>`;
   }).join('');
-  document.querySelectorAll('#viewTabs [data-view]').forEach(b => b.onclick = () => {
+  el.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
+    if (b.dataset.view === state.view) return;
     state.view = b.dataset.view;
     Object.assign(state, { days: 90, area: '', genre: '', q: '' });
     const url = new URL(location.href);
     if (VIEWS[state.view].slug) url.searchParams.set('view', VIEWS[state.view].slug); else url.searchParams.delete('view');
     history.replaceState(null, '', url);
     render();
+  });
+  updateViewTabsActive(true);
+}
+
+function updateViewTabsActive(instant) {
+  const el = document.getElementById('viewTabs');
+  el.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
+  positionPill(el, el.querySelector('.view-tab.active'), instant);
+}
+
+function updateHeaderChrome() {
+  const view = VIEWS[state.view];
+  document.title = `${PREF.label} ${view.label}アタックリスト`;
+  document.getElementById('pageTitle').textContent = `${PREF.label} ${view.label}アタックリスト`;
+  document.getElementById('appSub').textContent = `${view.subLabel}。自動更新`;
+  updateViewTabsActive(false);
+  document.querySelectorAll('#prefTabs [data-pref]').forEach(a => {
+    a.href = `?pref=${a.dataset.pref}${viewQuery(state.view)}`;
   });
 }
 
@@ -455,7 +546,14 @@ function downloadCsv(groups) {
   URL.revokeObjectURL(a.href);
 }
 
+// 県切り替えがページ遷移を伴わなくなったため、素早く連続でタブを切り替えると
+// 複数のload()が同時に飛ぶことがある。ネットワークの応答順は発行順と限らないため、
+// 古い方が後から返ってくると新しい方の結果を上書きしてしまう恐れがある（見えている
+// 県と実際に表示されているデータがズレる、営業ツールとして致命的な事故）。
+// 世代カウンタで「自分が最新のload()呼び出しか」を確認し、古ければ結果を捨てる
+let loadGeneration = 0;
 async function load() {
+  const myGeneration = ++loadGeneration;
   const el = document.getElementById('content');
   try {
     const [lostRes, delistedRes, newlyListedRes] = await Promise.all([
@@ -464,20 +562,36 @@ async function load() {
       fetch(`./data/${dataFileName('newly-listed')}`, { cache: 'no-store' }),
     ]);
     if (!lostRes.ok) throw new Error(String(lostRes.status));
-    DATA.lost = await lostRes.json();
-    if (!Array.isArray(DATA.lost.items)) DATA.lost.items = [];
-    const fallback = { items: [], updatedAt: DATA.lost.updatedAt, activeCount: DATA.lost.activeCount };
-    DATA.delisted = delistedRes.ok ? await delistedRes.json() : fallback;
-    if (!Array.isArray(DATA.delisted.items)) DATA.delisted.items = [];
-    DATA.newlyListed = newlyListedRes.ok ? await newlyListedRes.json() : fallback;
-    if (!Array.isArray(DATA.newlyListed.items)) DATA.newlyListed.items = [];
+    const lostJson = await lostRes.json();
+    if (!Array.isArray(lostJson.items)) lostJson.items = [];
+    const fallback = { items: [], updatedAt: lostJson.updatedAt, activeCount: lostJson.activeCount };
+    const delistedJson = delistedRes.ok ? await delistedRes.json() : fallback;
+    if (!Array.isArray(delistedJson.items)) delistedJson.items = [];
+    const newlyListedJson = newlyListedRes.ok ? await newlyListedRes.json() : fallback;
+    if (!Array.isArray(newlyListedJson.items)) newlyListedJson.items = [];
+    if (myGeneration !== loadGeneration) return; // 自分より新しいload()がすでに呼ばれている＝この結果は古いので捨てる
+    DATA.lost = lostJson;
+    DATA.delisted = delistedJson;
+    DATA.newlyListed = newlyListedJson;
     document.getElementById('updatedAt').textContent = fmtDateTime(DATA.lost.updatedAt) || '—';
+    buildViewTabs();
     render();
   } catch {
+    if (myGeneration !== loadGeneration) return;
     el.innerHTML = `<div class="empty-state">${esc(PREF.label)}の掲載台帳はまだありません。<br>
       台帳は自動更新で作成されます（記録開始: 2026-07-15）。</div>`;
   }
 }
+
+// タブの折り返し等でレイアウトが変わったときにピルがずれないよう再配置する
+window.addEventListener('resize', () => {
+  clearTimeout(window._pillResizeT);
+  window._pillResizeT = setTimeout(() => {
+    updatePrefTabsActive(true);
+    updateViewTabsActive(true);
+  }, 150);
+});
+
 load();
 </script>
 </body>
