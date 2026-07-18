@@ -28,6 +28,13 @@
 // gourmet APIの掲載一覧に含まれなくなったことをもって判定するため、<title>スクレイピングより
 // 信頼度が高く、2段階確認は不要。予約可だった店の解約は reservationLostAt にも従来どおり計上する。
 //
+// 新規掲載（ネット予約可）: 解約の逆で、新しくgourmet APIの掲載一覧に現れた店を newlyListedAt
+// として記録し、そのうち reservable:true が確認できた店だけを新規掲載リストとして公開する。
+// 全件取得（fetchAllShops）は毎回全件走るため、解約検出と違って「見えなくなってから気づく」
+// ラグは無く newlyListedAt は掲載開始と同じ運用間隔内の精度を持つ。ただし初回起動（台帳が
+// まだ無い最初の実行）で一括登録される店は「新しく掲載された」わけではないため対象外にする
+// （isBootstrapRun）。
+//
 // 使い方: HOTPEPPER_API_KEY=xxx node scripts/hotpepper-roster.mjs --pref=chiba
 // 依存パッケージなし（Node 20+ の組み込み fetch のみ使用）。
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -43,6 +50,8 @@ const ROSTER_PATH = path.join(__dirname, '..', 'data', ACTIVE_PREF.dataFile.repl
 const LOST_PATH = path.join(__dirname, '..', 'data', ACTIVE_PREF.dataFile.replace(/^stores/, 'hotpepper-reservation-lost'));
 // index.html が読む軽量版（解約＝掲載終了した店のみの抽出。理由（予約可否）を問わず全件）
 const DELISTED_PATH = path.join(__dirname, '..', 'data', ACTIVE_PREF.dataFile.replace(/^stores/, 'hotpepper-delisted'));
+// index.html が読む軽量版（新規掲載＝新しくホットペッパーに載り、ネット予約も使える店のみの抽出）
+const NEWLY_LISTED_PATH = path.join(__dirname, '..', 'data', ACTIVE_PREF.dataFile.replace(/^stores/, 'hotpepper-newly-listed'));
 // 誤検出などで手動除外したい店舗IDのリスト（全県共通・店舗IDはHotPepper全体で一意）
 export const MANUAL_OVERRIDES_PATH = path.join(__dirname, '..', 'data', 'manual-overrides.json');
 
@@ -210,6 +219,17 @@ export function hasMinDelistedTenure(shop) {
   return (last - first) >= MIN_DELISTED_TENURE_MS;
 }
 
+// prev.updatedAt が空文字＝台帳がまだ存在しない最初の実行（初回起動／このリポジトリの
+// 初期データ移行）を意味する。その回に取得した店は「新しくホットペッパーに掲載された」の
+// ではなく単なる初期の一括取り込みなので、新規掲載として記録してはいけない
+// （じげもんちゃんぽんの解約検出で「最終掲載確認〜検出のズレが実際の変化のタイミングとは
+// 限らない」と判明したのと対称の問題: 初回起動時に一括登録された店は全店が同じ
+// firstSeenAtを持つため、これを新規掲載扱いすると初回起動直後の「直近7日」等の期間
+// フィルタに数千件が「新規掲載」として現れてしまう）。
+export function isBootstrapRun(prevUpdatedAt) {
+  return !prevUpdatedAt;
+}
+
 async function loadRoster() {
   try {
     const json = JSON.parse(await readFile(ROSTER_PATH, 'utf-8'));
@@ -252,12 +272,15 @@ export async function main() {
     throw new Error(`fetched ${current.size} shops (prev ${prevActive}); aborting roster update`);
   }
 
+  const bootstrap = isBootstrapRun(prev.updatedAt);
+
   // 台帳へマージ: 今回見えた店は掲載情報とlastSeenAtを更新、見えなかった店はそのまま残す
   const shops = { ...prev.shops };
   let added = 0;
   for (const [id, s] of current) {
     if (!shops[id]) {
       shops[id] = { ...s, firstSeenAt: stamp, lastSeenAt: stamp };
+      if (!bootstrap) shops[id].newlyListedAt = stamp; // 新規掲載検出（初回起動時の一括登録は除く）
       added++;
     } else {
       // reservable系フィールドは維持しつつ、掲載情報だけ更新
@@ -356,6 +379,17 @@ export async function main() {
     }
   }
 
+  // 今回新たに掲載され、かつネット予約チェックで reservable:true まで確認できた店
+  // （新規掲載自体は上のマージ時点でわかるが、予約可否はローテーションチェック待ちのため
+  // 別run跨ぎで確定することもある）
+  const newlyListedNow = Object.entries(shops)
+    .filter(([, s]) => s.newlyListedAt === stamp && s.reservable === true)
+    .map(([id, s]) => ({ id, ...s }));
+  if (newlyListedNow.length > 0) {
+    console.log(`[info] 今回新たに新規掲載（ネット予約可）を検出: ${newlyListedNow.length} 店`);
+    for (const s of newlyListedNow) console.log(`  - ${s.name}（${s.area || s.address}） ${s.url}`);
+  }
+
   // 掲載終了から一定日数を過ぎた店は台帳から掃除（ファイル肥大防止）
   const keepCutoff = Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000;
   let pruned = 0;
@@ -374,10 +408,19 @@ export async function main() {
     .filter(([, s]) => !!s.delistedAt)
     .map(([id, s]) => ({ id, ...s }))
     .sort((a, b) => (a.delistedAt < b.delistedAt ? 1 : -1));
+  // 新規掲載（ネット予約可）: newlyListedAt（初回起動時の一括登録を除く新規掲載日）が付いていて、
+  // かつ現時点で reservable:true が確認できている店のみ。予約可否は後から変わりうるため、
+  // 過去に一度trueだったかではなく「現在も」trueであることを条件にする
+  const newlyListedAllRaw = Object.entries(shops)
+    .filter(([, s]) => !!s.newlyListedAt && s.reservable === true)
+    .map(([id, s]) => ({ id, ...s }))
+    .sort((a, b) => (a.newlyListedAt < b.newlyListedAt ? 1 : -1));
   // 手動除外（誤検出などをdata/manual-overrides.jsonでピンポイントに外す）。
-  // 台帳（ROSTER_PATH）には残し、公開用のリスト（LOST_PATH/DELISTED_PATH）からのみ除外する
+  // 台帳（ROSTER_PATH）には残し、公開用のリスト（LOST_PATH/DELISTED_PATH/NEWLY_LISTED_PATH）
+  // からのみ除外する
   const reservationLostAll = reservationLostAllRaw.filter(s => !excludedIds.has(s.id));
   const delistedAll = delistedAllRaw.filter(s => !excludedIds.has(s.id));
+  const newlyListedAll = newlyListedAllRaw.filter(s => !excludedIds.has(s.id));
   const excludedCount = reservationLostAllRaw.length - reservationLostAll.length;
 
   await mkdir(path.dirname(ROSTER_PATH), { recursive: true });
@@ -387,6 +430,7 @@ export async function main() {
     activeCount: current.size,
     reservationLostCount: reservationLostAllRaw.length,
     delistedCount: delistedAllRaw.length,
+    newlyListedCount: newlyListedAllRaw.length,
     shops,
   }, null, 1));
   // アタックリスト画面（index.html）用の軽量抽出
@@ -403,8 +447,15 @@ export async function main() {
     activeCount: current.size,
     items: delistedAll,
   }, null, 1));
-  console.log(`[info] 台帳更新: 掲載中 ${current.size} / 新規 ${added} / 予約不可(累計) ${reservationLostAllRaw.length}（手動除外 ${excludedCount}） / 解約(累計) ${delistedAllRaw.length} / 疑い中 ${listedIds.filter(id => shops[id].reservationSuspectedAt && !shops[id].reservationLostAt).length} / 掃除 ${pruned}`);
-  console.log(`[info] wrote ${ROSTER_PATH} / ${LOST_PATH} / ${DELISTED_PATH}`);
+  // 新規掲載（ネット予約可）リスト画面（index.html）用の軽量抽出
+  await writeFile(NEWLY_LISTED_PATH, JSON.stringify({
+    updatedAt: stamp,
+    pref: ACTIVE_PREF.id,
+    activeCount: current.size,
+    items: newlyListedAll,
+  }, null, 1));
+  console.log(`[info] 台帳更新: 掲載中 ${current.size} / 新規 ${added} / 予約不可(累計) ${reservationLostAllRaw.length}（手動除外 ${excludedCount}） / 解約(累計) ${delistedAllRaw.length} / 新規掲載(予約可,累計) ${newlyListedAllRaw.length} / 疑い中 ${listedIds.filter(id => shops[id].reservationSuspectedAt && !shops[id].reservationLostAt).length} / 掃除 ${pruned}`);
+  console.log(`[info] wrote ${ROSTER_PATH} / ${LOST_PATH} / ${DELISTED_PATH} / ${NEWLY_LISTED_PATH}`);
 }
 
 // このファイルが直接実行された場合のみ main() を走らせる（test-data.mjs から

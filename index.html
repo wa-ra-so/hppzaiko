@@ -120,25 +120,48 @@ const prefParam = new URLSearchParams(location.search).get('pref');
 const PREF_ID = Object.prototype.hasOwnProperty.call(PREFS, prefParam) ? prefParam : 'chiba';
 const PREF = PREFS[PREF_ID];
 
-// kind: 'reservation-lost' | 'delisted'。ファイル名は千葉のみ従来URL互換でサフィックス無し
+// kind: 'reservation-lost' | 'delisted' | 'newly-listed'。ファイル名は千葉のみ従来URL互換でサフィックス無し
 const dataFileName = (kind) => PREF_ID === 'chiba' ? `hotpepper-${kind}.json` : `hotpepper-${kind}-${PREF_ID}.json`;
 
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate = (iso) => (iso || '').slice(0, 10);
+const dayMs = 24 * 60 * 60 * 1000;
+const strUrl = (it) => it.url || `https://www.hotpepper.jp/str${it.id}/`;
+
+// slug: URLの?view=に使う短縮名（'lost'は従来URL互換のためslug無し＝パラメータ自体を付けない）
 const VIEWS = {
   lost: {
     label: '予約不可',
+    slug: '',
     dateField: 'reservationLostAt',
     kpiLabel: 'ネット予約不可（累計）',
     subLabel: 'ホットペッパーのネット予約カレンダーが使えなくなった店舗',
     emptyLabel: 'ネット予約不可店',
+    csvCols: ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', '同一住所の重複掲載件数', 'ホットペッパーURL'],
+    csvRow: (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastReservableAt), fmtDate(it.reservationSuspectedAt) || fmtDate(it.reservationLostAt), fmtDate(it.reservationLostAt), n, strUrl(it)],
   },
   delisted: {
     label: '解約（掲載終了）',
+    slug: 'delisted',
     dateField: 'delistedAt',
     kpiLabel: '解約（累計）',
     subLabel: 'ホットペッパーの掲載自体が終了した店舗（未入金による強制解約なども含む）',
     emptyLabel: '解約店',
+    csvCols: ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', '同一住所の重複掲載件数', 'ホットペッパーURL'],
+    csvRow: (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastSeenAt), fmtDate(it.delistedAt), it.reservationLostAt ? 'ネット予約も不可だった' : '不明', n, strUrl(it)],
+  },
+  newlyListed: {
+    label: '新規掲載（予約可）',
+    slug: 'newly-listed',
+    dateField: 'newlyListedAt',
+    kpiLabel: '新規掲載（累計）',
+    subLabel: 'ホットペッパーに新しく掲載され、ネット予約も使えるようになった店舗',
+    emptyLabel: '新規掲載店',
+    csvCols: ['店名', 'ジャンル', 'エリア', '住所', '新規掲載検出日', '同一住所の重複掲載件数', 'ホットペッパーURL'],
+    csvRow: (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.newlyListedAt), n, strUrl(it)],
   },
 };
+const VIEW_BY_SLUG = Object.fromEntries(Object.entries(VIEWS).filter(([, v]) => v.slug).map(([id, v]) => [v.slug, id]));
 
 const viewParam = new URLSearchParams(location.search).get('view');
 const PERIODS = [
@@ -147,15 +170,12 @@ const PERIODS = [
   { days: 90,  label: '直近90日' },
   { days: 0,   label: '全期間' },
 ];
-const state = { view: viewParam === 'delisted' ? 'delisted' : 'lost', days: 90, area: '', genre: '', q: '' };
-let DATA = { lost: null, delisted: null };
+const state = { view: VIEW_BY_SLUG[viewParam] || 'lost', days: 90, area: '', genre: '', q: '' };
+let DATA = { lost: null, delisted: null, newlyListed: null };
 
+const viewQuery = (view) => VIEWS[view].slug ? `&view=${VIEWS[view].slug}` : '';
 document.getElementById('prefTabs').innerHTML = Object.entries(PREFS).map(([id, p]) =>
-  `<a class="pref-tab${id === PREF_ID ? ' active' : ''}" href="?pref=${id}${state.view === 'delisted' ? '&view=delisted' : ''}">${p.label}</a>`).join('');
-
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmtDate = (iso) => (iso || '').slice(0, 10);
-const dayMs = 24 * 60 * 60 * 1000;
+  `<a class="pref-tab${id === PREF_ID ? ' active' : ''}" href="?pref=${id}${viewQuery(state.view)}">${p.label}</a>`).join('');
 
 // 台帳更新時刻（リストがいつ更新されたか）はJST（日本時間）の日付+時刻で表示する。
 // 各店の検出日（reservationLostAt等）は元々日単位の精度しか無いのでfmtDateのままでよいが、
@@ -236,7 +256,7 @@ function updateHeaderChrome() {
     state.view = b.dataset.view;
     Object.assign(state, { days: 90, area: '', genre: '', q: '' });
     const url = new URL(location.href);
-    if (state.view === 'delisted') url.searchParams.set('view', 'delisted'); else url.searchParams.delete('view');
+    if (VIEWS[state.view].slug) url.searchParams.set('view', VIEWS[state.view].slug); else url.searchParams.delete('view');
     history.replaceState(null, '', url);
     render();
   });
@@ -282,7 +302,7 @@ function render() {
   <div class="result-count">${groups.length} 軒を表示${dupCount > 0 ? `（同一住所の重複掲載 ${dupCount} 件を集約済み）` : ''}</div>
   ${groups.length === 0
     ? `<div class="empty-state">条件に合う${esc(view.emptyLabel)}はありません。<br>台帳の記録は 2026-07-14 開始で、全店舗を数日かけて順にチェックするため、検出には少し時間がかかります。</div>`
-    : `<div class="list-card">${groups.map(state.view === 'delisted' ? rowDelisted : rowLost).join('')}</div>`}
+    : `<div class="list-card">${groups.map(ROW_RENDERERS[state.view]).join('')}</div>`}
   `;
 
   el.querySelectorAll('[data-days]').forEach(b => b.onclick = () => { state.days = +b.dataset.days; render(); });
@@ -321,7 +341,7 @@ function rowLost(group) {
       <div class="d-badge">予約不可確定</div>
     </div>
     <div class="row-main">
-      <div class="row-title"><a href="${esc(it.url || `https://www.hotpepper.jp/str${it.id}/`)}" target="_blank" rel="noopener">${esc(it.name)}</a></div>
+      <div class="row-title"><a href="${esc(strUrl(it))}" target="_blank" rel="noopener">${esc(it.name)}</a></div>
       <div class="row-addr">${esc(it.address)}</div>
       <div class="tag-row">
         ${it.area ? `<span class="tag tag-area">${esc(it.area)}</span>` : ''}
@@ -347,7 +367,7 @@ function rowDelisted(group) {
       <div class="d-badge">解約検出</div>
     </div>
     <div class="row-main">
-      <div class="row-title"><a href="${esc(it.url || `https://www.hotpepper.jp/str${it.id}/`)}" target="_blank" rel="noopener">${esc(it.name)}</a></div>
+      <div class="row-title"><a href="${esc(strUrl(it))}" target="_blank" rel="noopener">${esc(it.name)}</a></div>
       <div class="row-addr">${esc(it.address)}</div>
       <div class="tag-row">
         ${it.area ? `<span class="tag tag-area">${esc(it.area)}</span>` : ''}
@@ -360,19 +380,39 @@ function rowDelisted(group) {
   </div>`;
 }
 
+function rowNewlyListed(group) {
+  const it = group.primary;
+  const d = fmtDate(it.newlyListedAt);
+  return `<div class="store-row">
+    <div class="row-date">
+      <div class="d-day">${d.slice(8, 10)}日</div>
+      <div class="d-mo">${d.slice(0, 7).replace('-', '/')}</div>
+      <div class="d-badge">新規掲載検出</div>
+    </div>
+    <div class="row-main">
+      <div class="row-title"><a href="${esc(strUrl(it))}" target="_blank" rel="noopener">${esc(it.name)}</a></div>
+      <div class="row-addr">${esc(it.address)}</div>
+      <div class="tag-row">
+        ${it.area ? `<span class="tag tag-area">${esc(it.area)}</span>` : ''}
+        ${it.genre ? `<span class="tag tag-genre">${esc(it.genre)}</span>` : ''}
+        <span class="tag tag-listed">ネット予約可</span>
+      </div>
+      <div class="tag-row"><span class="tag tag-listed">新規掲載検出: ${d}（全件チェックは実行のたびに走るため、解約検出と違い実際の掲載開始とのズレは運用間隔程度です）</span></div>
+      ${dupNote(group)}
+    </div>
+  </div>`;
+}
+
+const ROW_RENDERERS = { lost: rowLost, delisted: rowDelisted, newlyListed: rowNewlyListed };
+
 function downloadCsv(groups) {
   const escCsv = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const cols = state.view === 'delisted'
-    ? ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', '同一住所の重複掲載件数', 'ホットペッパーURL']
-    : ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', '同一住所の重複掲載件数', 'ホットペッパーURL'];
-  const toRow = state.view === 'delisted'
-    ? (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastSeenAt), fmtDate(it.delistedAt), it.reservationLostAt ? 'ネット予約も不可だった' : '不明', n, it.url || `https://www.hotpepper.jp/str${it.id}/`]
-    : (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastReservableAt), fmtDate(it.reservationSuspectedAt) || fmtDate(it.reservationLostAt), fmtDate(it.reservationLostAt), n, it.url || `https://www.hotpepper.jp/str${it.id}/`];
-  const rows = [cols.map(escCsv).join(',')].concat(groups.map(g => toRow(g.primary, g.items.length).map(escCsv).join(',')));
+  const view = VIEWS[state.view];
+  const rows = [view.csvCols.map(escCsv).join(',')].concat(groups.map(g => view.csvRow(g.primary, g.items.length).map(escCsv).join(',')));
   const blob = new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `${state.view}-list-${PREF_ID}-${fmtDate(new Date().toISOString())}.csv`;
+  a.download = `${VIEWS[state.view].slug || 'lost'}-list-${PREF_ID}-${fmtDate(new Date().toISOString())}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -380,15 +420,19 @@ function downloadCsv(groups) {
 async function load() {
   const el = document.getElementById('content');
   try {
-    const [lostRes, delistedRes] = await Promise.all([
+    const [lostRes, delistedRes, newlyListedRes] = await Promise.all([
       fetch(`./data/${dataFileName('reservation-lost')}`, { cache: 'no-store' }),
       fetch(`./data/${dataFileName('delisted')}`, { cache: 'no-store' }),
+      fetch(`./data/${dataFileName('newly-listed')}`, { cache: 'no-store' }),
     ]);
     if (!lostRes.ok) throw new Error(String(lostRes.status));
     DATA.lost = await lostRes.json();
     if (!Array.isArray(DATA.lost.items)) DATA.lost.items = [];
-    DATA.delisted = delistedRes.ok ? await delistedRes.json() : { items: [], updatedAt: DATA.lost.updatedAt, activeCount: DATA.lost.activeCount };
+    const fallback = { items: [], updatedAt: DATA.lost.updatedAt, activeCount: DATA.lost.activeCount };
+    DATA.delisted = delistedRes.ok ? await delistedRes.json() : fallback;
     if (!Array.isArray(DATA.delisted.items)) DATA.delisted.items = [];
+    DATA.newlyListed = newlyListedRes.ok ? await newlyListedRes.json() : fallback;
+    if (!Array.isArray(DATA.newlyListed.items)) DATA.newlyListed.items = [];
     document.getElementById('updatedAt').textContent = fmtDateTime(DATA.lost.updatedAt) || '—';
     render();
   } catch {
