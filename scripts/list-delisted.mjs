@@ -53,6 +53,11 @@ async function main() {
       delistedOn: fmtDate(s.delistedAt),
       hadReservation: !!s.reservationLostAt,
       url: s.url || `https://www.hotpepper.jp/str${id}/`,
+      catch: s.catch || '',
+      budget: s.budget || '',
+      open: s.open || '',
+      close: s.close || '',
+      access: s.access || '',
     }))
     .sort((a, b) => (a.delistedOn < b.delistedOn ? 1 : -1));
 
@@ -63,13 +68,18 @@ async function main() {
     console.log(`   ${s.address}`);
     console.log(`   最終掲載確認: ${s.lastSeenOn} → 解約検出: ${s.delistedOn}（この日付はホットペッパー側の掲載消失に気づいた日です。実際の閉店日ではなく、掲載が閉店後もホットペッパー側にしばらく残っていた場合はそれより前に閉店している可能性があります）`);
     console.log(`   解約前の予約状況: ${s.hadReservation ? 'ネット予約も不可だった' : '不明'} / ページ: ${s.url}`);
+    // 解約前に最後に確認できた店舗情報（架電・商談の参考情報。ページ自体はもう見られない）
+    if (s.catch) console.log(`   キャッチ: ${s.catch}`);
+    if (s.budget) console.log(`   予算: ${s.budget}`);
+    if (s.open || s.close) console.log(`   営業時間: ${s.open || '不明'}${s.close ? ` / 定休日: ${s.close}` : ''}`);
+    if (s.access) console.log(`   アクセス: ${s.access}`);
   }
 
   if (CSV_PATH) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'ホットペッパーURL'].map(esc).join(','),
-      ...delisted.map(s => [s.name, s.genre, s.area, s.address, s.lastSeenOn, s.delistedOn, s.hadReservation ? 'ネット予約も不可だった' : '不明', s.url].map(esc).join(',')),
+      ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'キャッチコピー', '予算', '営業時間', '定休日', 'アクセス', 'ホットペッパーURL'].map(esc).join(','),
+      ...delisted.map(s => [s.name, s.genre, s.area, s.address, s.lastSeenOn, s.delistedOn, s.hadReservation ? 'ネット予約も不可だった' : '不明', s.catch, s.budget, s.open, s.close, s.access, s.url].map(esc).join(',')),
     ];
     // Excelで文字化けしないようBOM付きUTF-8で出力
     await writeFile(CSV_PATH, '\uFEFF' + rows.join('\r\n'));

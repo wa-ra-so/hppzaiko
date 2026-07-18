@@ -27,7 +27,7 @@
 | `scripts/list-delisted.mjs` | 台帳から解約（掲載終了）した店をCLI出力・CSV書き出しするヘルパー |
 | `scripts/list-newly-listed.mjs` | 台帳から新規掲載（ネット予約可）した店をCLI出力・CSV書き出しするヘルパー |
 | `scripts/test-data.mjs` | 判定ロジック（`applyReservableCheck`/`checkReservable`/`hasMinDelistedTenure`/`isBootstrapRun`）の単体テスト＋`data/*.json` の整合性チェック。台帳更新の前後でActionsから実行し、ロジックの劣化や壊れたデータをコミットしない |
-| `data/hotpepper-roster*.json` | 県ごとのホットペッパー掲載台帳（店舗IDごとの firstSeenAt / lastSeenAt / reservable / reservableCheckedAt / lastReservableAt / reservationSuspectedAt / reservationLostAt / delistedAt / newlyListedAt。Actionsが自動コミット） |
+| `data/hotpepper-roster*.json` | 県ごとのホットペッパー掲載台帳（店舗IDごとの firstSeenAt / lastSeenAt / reservable / reservableCheckedAt / lastReservableAt / reservationSuspectedAt / reservationLostAt / delistedAt / newlyListedAt / catch / budget / open / close / access。Actionsが自動コミット） |
 | `data/hotpepper-reservation-lost*.json` | 台帳から抽出したネット予約不可店（確定分・手動除外を除く）のみの軽量版（`index.html` が読む） |
 | `data/hotpepper-delisted*.json` | 台帳から抽出した解約（掲載終了）店（手動除外を除く）のみの軽量版（`index.html` が読む） |
 | `data/hotpepper-newly-listed*.json` | 台帳から抽出した新規掲載（ネット予約可・手動除外を除く）店のみの軽量版（`index.html` が読む） |
@@ -102,6 +102,14 @@
 含まれなくなったことをもって行うため`<title>`スクレイピングより信頼度が高く、2段階確認は
 不要（掲載終了チェックは1日24回・毎回全件走るため）。予約可だった店が解約した場合は、
 従来どおり`reservationLostAt`（予約不可）にも計上され、両方のタブに表示される。
+
+**解約前の最終確認情報**: `catch`/`budget`/`open`/`close`/`access`（キャッチコピー・
+予算・営業時間・定休日・アクセス）は掲載中の最新値で毎回上書き保存している
+（`fetchAllShops`）ため、解約後もその店の「解約前に最後に確認できた姿」として
+台帳・解約リストに残る。解約後は店舗ページ自体が見られなくなるため、架電・商談時の
+参考情報として`index.html`の解約タブとCSVに表示する。**この情報はフィールド追加
+（2026-07-18）以降に見えていた店にしか付かない**。既存の解約済み店（フィールド追加前に
+最後に見えていた店）は遡って取得できないため空欄のまま。
 
 判定条件は「今回のgourmet API取得結果に含まれておらず、かつまだ`delistedAt`が
 記録されていない店」（前回との単純な差分ではない）。差分方式だと消えた直後の1回しか
