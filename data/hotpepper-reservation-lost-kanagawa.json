@@ -1,8 +1,28 @@
 {
- "updatedAt": "2026-07-19T18:14:37.547Z",
+ "updatedAt": "2026-07-19T19:41:16.468Z",
  "pref": "kanagawa",
  "activeCount": 9738,
  "items": [
+  {
+   "id": "J000244269",
+   "name": "しげ吉 大和本店",
+   "address": "神奈川県大和市深見西２-1-3 ",
+   "genre": "焼肉・ホルモン",
+   "area": "大和",
+   "url": "https://www.hotpepper.jp/strJ000244269/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:56:07.680Z",
+   "lastSeenAt": "2026-07-19T19:41:16.468Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-19T19:41:16.468Z",
+   "lastReservableAt": "2026-07-18T21:14:34.296Z",
+   "catch": "落ち着く半個室が嬉しい！",
+   "budget": "4000円",
+   "open": "月～金、祝前日: 16:00～23:00 （料理L.O. 22:30 ドリンクL.O. 22:30）土、日、祝日: 11:30～23:00 （料理L.O. 22:30 ドリンクL.O. 22:30）",
+   "close": "※テイクアウトも実施中",
+   "access": "大和駅徒歩8分",
+   "reservationSuspectedAt": "2026-07-19T18:14:37.547Z",
+   "reservationLostAt": "2026-07-19T19:41:16.468Z"
+  },
   {
    "id": "J003872004",
    "name": "鎌倉ふくみ",
