@@ -293,6 +293,14 @@ function currentData() {
   return DATA[state.view] || { items: [], activeCount: null, updatedAt: '' };
 }
 
+// 解約と新規掲載を差し引きした直近30日の純増減。タブごとに別々の数字を見るだけでは
+// 「結局増えているのか減っているのか」が分かりにくいため、KPI行にまとめて出す
+function netChange30() {
+  const delistedCount = DATA.delisted ? groupByAddress(DATA.delisted.items, 'delistedAt').filter(g => withinDays(g.date, 30)).length : 0;
+  const newlyListedCount = DATA.newlyListed ? groupByAddress(DATA.newlyListed.items, 'newlyListedAt').filter(g => withinDays(g.date, 30)).length : 0;
+  return { delistedCount, newlyListedCount, net: newlyListedCount - delistedCount };
+}
+
 function filtered() {
   const data = currentData();
   const dateField = VIEWS[state.view].dateField;
@@ -390,12 +398,13 @@ function render() {
   const areas  = [...new Set(data.items.map(it => it.area).filter(Boolean))].sort();
   const genres = [...new Set(data.items.map(it => it.genre).filter(Boolean))].sort();
   const dupCount = items.length - groups.length;
+  const nc = netChange30();
 
   el.innerHTML = `
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-label">${view.kpiLabel}</div><div class="kpi-value">${groupedAll.length}<span class="unit">軒</span></div><div class="kpi-note">記録開始以降（同一住所は1軒に集約）</div></div>
     <div class="kpi"><div class="kpi-label">直近30日</div><div class="kpi-value">${counts.d30}<span class="unit">軒</span></div><div class="kpi-note">直近7日: ${counts.d7}軒</div></div>
-    <div class="kpi"><div class="kpi-label">HP掲載店数（API）</div><div class="kpi-value">${data.activeCount ?? '—'}<span class="unit">店</span></div><div class="kpi-note">サイト検索の件数とは集計基準が異なります</div></div>
+    <div class="kpi"><div class="kpi-label">HP掲載店数（API）</div><div class="kpi-value">${data.activeCount ?? '—'}<span class="unit">店</span></div><div class="kpi-note">直近30日 純増減: ${nc.net > 0 ? '+' : ''}${nc.net}（新規掲載${nc.newlyListedCount} / 解約${nc.delistedCount}）</div></div>
     <div class="kpi"><div class="kpi-label">台帳更新</div><div class="kpi-value" style="font-size:15px;line-height:1.35;padding-top:8px;">${fmtDate(data.updatedAt)}<span class="unit" style="display:block;font-size:13px;margin-left:0;">${fmtTime(data.updatedAt)}</span></div><div class="kpi-note">自動更新</div></div>
   </div>
   <div class="filter-card"><div class="filter-row">
