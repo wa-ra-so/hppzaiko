@@ -7,7 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { PREFECTURES } from './prefectures.mjs';
-import { applyReservableCheck, checkReservable, hasMinDelistedTenure, isBootstrapRun } from './hotpepper-roster.mjs';
+import { applyReservableCheck, checkReservable, hasMinDelistedTenure, isBootstrapRun, shouldClearSyntheticLostFlags } from './hotpepper-roster.mjs';
+import { normalizeAddress, groupByAddress } from './address-dedup.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -166,6 +167,67 @@ function testIsBootstrapRun() {
   ok('isBootstrapRun: 単体テスト 3/3 パス');
 }
 
+// ── ①''''shouldClearSyntheticLostFlags単体テスト（再掲載時に解約起因の合成フラグだけを消す） ──
+function testShouldClearSyntheticLostFlags() {
+  const T1 = '2026-07-01T00:00:00.000Z';
+  const T2 = '2026-07-02T00:00:00.000Z';
+
+  // 解約と同時に自動付与された合成フラグ（両方とも解約日と同じstamp）→ 消してよい
+  assert.equal(
+    shouldClearSyntheticLostFlags({ delistedAt: T2, reservationSuspectedAt: T2, reservationLostAt: T2 }),
+    true, '解約起因の合成フラグ（両方とも解約日と同じ）: true');
+
+  // 解約前から独立して確認済みだった予約不可（タイムスタンプが解約日と異なる）→ 消してはいけない
+  assert.equal(
+    shouldClearSyntheticLostFlags({ delistedAt: T2, reservationSuspectedAt: T1, reservationLostAt: T1 }),
+    false, '解約前から独立して確認済みの予約不可: false（本物のシグナルなので保持）');
+
+  // 疑い（1回目）だけが解約日と一致し確定はまだ、というケースは無い想定だが念のため
+  assert.equal(
+    shouldClearSyntheticLostFlags({ delistedAt: T2, reservationSuspectedAt: T2, reservationLostAt: undefined }),
+    false, 'reservationLostAt無し: false');
+
+  // 解約自体していない店は対象外
+  assert.equal(
+    shouldClearSyntheticLostFlags({ reservationSuspectedAt: T1, reservationLostAt: T1 }),
+    false, 'delistedAt無し: false');
+
+  ok('shouldClearSyntheticLostFlags: 単体テスト 4/4 パス');
+}
+
+// ── ①'''''normalizeAddress/groupByAddress単体テスト（CLI出力の重複統合。index.htmlの複製元） ──
+function testAddressDedup() {
+  // 全角/半角数字・スペース有無・「丁目」表記の揺れを吸収して同一店舗と判定できること
+  assert.equal(normalizeAddress('千葉県松戸市松戸１３０７ー１'), normalizeAddress('千葉県松戸市松戸1307-1'),
+    '全角/半角数字・長音記号の表記ゆれを同一視できる');
+  assert.equal(normalizeAddress('東京都新宿区西新宿２丁目８－１'), normalizeAddress('東京都新宿区西新宿2-8-1'),
+    '「丁目」表記の有無を同一視できる');
+  assert.equal(normalizeAddress('東京都 新宿区 西新宿'), normalizeAddress('東京都新宿区西新宿'),
+    'スペースの有無を同一視できる');
+
+  // groupByAddress: 同一住所（表記ゆれ含む）の店を1グループに束ね、代表は日付が新しい方
+  {
+    const items = [
+      { id: 'A', address: '千葉県松戸市松戸1307-1', delistedAt: '2026-07-17' },
+      { id: 'B', address: '千葉県松戸市松戸１３０７ー１', delistedAt: '2026-07-18' }, // 表記ゆれだが同一住所、日付は新しい
+      { id: 'C', address: '千葉県千葉市中央区富士見1-1-1', delistedAt: '2026-07-16' }, // 別住所
+    ];
+    const groups = groupByAddress(items, 'delistedAt');
+    assert.equal(groups.length, 2, '同一住所（表記ゆれ含む）の2件を1グループに束ね、別住所と合わせて2グループになる');
+    const matsudoGroup = groups.find(g => g.items.some(it => it.id === 'A'));
+    assert.equal(matsudoGroup.items.length, 2, '松戸のグループは2件束ねられている');
+    assert.equal(matsudoGroup.primary.id, 'B', '代表は日付が新しい方（B）');
+  }
+  // 住所が無い店は束ねずID単位で個別扱いする
+  {
+    const items = [{ id: 'D', address: '', delistedAt: '2026-07-15' }, { id: 'E', address: '', delistedAt: '2026-07-15' }];
+    const groups = groupByAddress(items, 'delistedAt');
+    assert.equal(groups.length, 2, '住所が無い店同士は束ねない');
+  }
+
+  ok('normalizeAddress/groupByAddress: 単体テスト 5/5 パス');
+}
+
 // ── ②data/*.json の整合性チェック ──
 async function loadExcludedIds() {
   try {
@@ -183,6 +245,9 @@ async function checkRoster(pref) {
   const json = await loadJson(file);
   assert.equal(typeof json.updatedAt, 'string', `${file}: updatedAt must be a string`);
   assert.equal(json.pref, pref.id, `${file}: pref must be "${pref.id}"`);
+  // staleRunsは今回のフィールド追加以降にしか付かないため、無い（既存データ）場合は許容する
+  assert.ok(json.staleRuns === undefined || (Number.isFinite(json.staleRuns) && json.staleRuns >= 0),
+    `${file}: staleRuns must be a non-negative number when present`);
   assert.equal(typeof json.shops, 'object', `${file}: shops must be an object`);
   assert.ok(json.shops && !Array.isArray(json.shops), `${file}: shops must not be an array`);
   const ids = Object.keys(json.shops);
@@ -280,6 +345,8 @@ async function main() {
   await testCheckReservable();
   testHasMinDelistedTenure();
   testIsBootstrapRun();
+  testShouldClearSyntheticLostFlags();
+  testAddressDedup();
 
   const excludedIds = await loadExcludedIds();
   for (const pref of Object.values(PREFECTURES)) {

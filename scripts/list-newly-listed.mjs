@@ -1,6 +1,7 @@
 // 掲載台帳（data/hotpepper-roster*.json）から「新しくホットペッパーに掲載され、ネット予約も
 // 使える店」を出力する。予約不可・解約の逆で、新規開拓の営業リードとして使う。
 // data/manual-overrides.json で手動除外された店は含めない。
+// 同じ物理店舗が複数の店舗IDを持つケースは住所ベースで束ね、index.htmlと同じく1軒として扱う。
 //
 // 使い方:
 //   node scripts/list-newly-listed.mjs --pref=chiba            # 直近90日を表示
@@ -13,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getPrefFromArgv } from './prefectures.mjs';
 import { loadManualOverrides } from './hotpepper-roster.mjs';
+import { groupByAddress } from './address-dedup.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ACTIVE_PREF = getPrefFromArgv();
@@ -42,32 +44,32 @@ async function main() {
   const excludedIds = await loadManualOverrides();
   const cutoff = Date.now() - DAYS * 24 * 60 * 60 * 1000;
 
-  const newlyListed = Object.entries(shops)
+  const newlyListedRaw = Object.entries(shops)
     .filter(([id, s]) => s.newlyListedAt && s.reservable === true && Date.parse(s.newlyListedAt) >= cutoff && !excludedIds.has(id))
-    .map(([id, s]) => ({
-      id,
-      name: s.name,
-      address: s.address,
-      genre: s.genre,
-      area: s.area,
-      listedOn: fmtDate(s.newlyListedAt),
-      url: s.url || `https://www.hotpepper.jp/str${id}/`,
-    }))
-    .sort((a, b) => (a.listedOn < b.listedOn ? 1 : -1));
+    .map(([id, s]) => ({ id, ...s }));
+  const groups = groupByAddress(newlyListedRaw, 'newlyListedAt');
+  const dupCount = newlyListedRaw.length - groups.length;
 
   console.log(`■ ${ACTIVE_PREF.name} 新規掲載（ネット予約可）の店（直近${DAYS}日 / 台帳更新: ${fmtDate(updatedAt)}）`);
-  console.log(`  該当: ${newlyListed.length} 店\n`);
-  for (const s of newlyListed) {
+  console.log(`  該当: ${groups.length} 店${dupCount > 0 ? `（同一住所の重複掲載 ${dupCount} 件を集約済み）` : ''}\n`);
+  for (const g of groups) {
+    const s = g.primary;
     console.log(`・${s.name}${s.genre ? `（${s.genre}）` : ''}`);
     console.log(`   ${s.address}`);
-    console.log(`   新規掲載検出: ${s.listedOn}（全件チェックは実行のたびに走るため、実際の掲載開始とのズレは運用間隔程度です） / ページ: ${s.url}`);
+    console.log(`   新規掲載検出: ${fmtDate(s.newlyListedAt)}（全件チェックは実行のたびに走るため、実際の掲載開始とのズレは運用間隔程度です） / ページ: ${s.url || `https://www.hotpepper.jp/str${s.id}/`}`);
+    if (g.items.length > 1) {
+      console.log(`   同一住所に${g.items.length}件の掲載（重複掲載の可能性）: ${g.items.slice(1).map(o => o.name).join(' / ')}`);
+    }
   }
 
   if (CSV_PATH) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['店名', 'ジャンル', 'エリア', '住所', '新規掲載検出日', 'ホットペッパーURL'].map(esc).join(','),
-      ...newlyListed.map(s => [s.name, s.genre, s.area, s.address, s.listedOn, s.url].map(esc).join(',')),
+      ['店名', 'ジャンル', 'エリア', '住所', '新規掲載検出日', '同一住所の重複掲載件数', 'ホットペッパーURL'].map(esc).join(','),
+      ...groups.map(g => {
+        const s = g.primary;
+        return [s.name, s.genre, s.area, s.address, fmtDate(s.newlyListedAt), g.items.length, s.url || `https://www.hotpepper.jp/str${s.id}/`].map(esc).join(',');
+      }),
     ];
     // Excelで文字化けしないようBOM付きUTF-8で出力
     await writeFile(CSV_PATH, '\uFEFF' + rows.join('\r\n'));

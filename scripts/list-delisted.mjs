@@ -1,5 +1,6 @@
 // 掲載台帳（data/hotpepper-roster*.json）から「解約（掲載自体が終了）した店」を
 // 理由（予約可否）を問わず出力する。data/manual-overrides.json で手動除外された店は含めない。
+// 同じ物理店舗が複数の店舗IDを持つケースは住所ベースで束ね、index.htmlと同じく1軒として扱う。
 //
 // 使い方:
 //   node scripts/list-delisted.mjs --pref=chiba            # 直近90日を表示
@@ -12,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getPrefFromArgv } from './prefectures.mjs';
 import { loadManualOverrides } from './hotpepper-roster.mjs';
+import { groupByAddress } from './address-dedup.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ACTIVE_PREF = getPrefFromArgv();
@@ -41,45 +43,44 @@ async function main() {
   const excludedIds = await loadManualOverrides();
   const cutoff = Date.now() - DAYS * 24 * 60 * 60 * 1000;
 
-  const delisted = Object.entries(shops)
+  const delistedRaw = Object.entries(shops)
     .filter(([id, s]) => s.delistedAt && Date.parse(s.delistedAt) >= cutoff && !excludedIds.has(id))
-    .map(([id, s]) => ({
-      id,
-      name: s.name,
-      address: s.address,
-      genre: s.genre,
-      area: s.area,
-      lastSeenOn: fmtDate(s.lastSeenAt),
-      delistedOn: fmtDate(s.delistedAt),
-      hadReservation: !!s.reservationLostAt,
-      url: s.url || `https://www.hotpepper.jp/str${id}/`,
-      catch: s.catch || '',
-      budget: s.budget || '',
-      open: s.open || '',
-      close: s.close || '',
-      access: s.access || '',
-    }))
-    .sort((a, b) => (a.delistedOn < b.delistedOn ? 1 : -1));
+    .map(([id, s]) => ({ id, ...s }));
+  const groups = groupByAddress(delistedRaw, 'delistedAt');
+  const dupCount = delistedRaw.length - groups.length;
 
   console.log(`■ ${ACTIVE_PREF.name} 解約（掲載終了）した店（直近${DAYS}日 / 台帳更新: ${fmtDate(updatedAt)}）`);
-  console.log(`  該当: ${delisted.length} 店\n`);
-  for (const s of delisted) {
+  console.log(`  該当: ${groups.length} 店${dupCount > 0 ? `（同一住所の重複掲載 ${dupCount} 件を集約済み）` : ''}\n`);
+  for (const g of groups) {
+    const s = g.primary;
+    const hadReservation = !!s.reservationLostAt;
     console.log(`・${s.name}${s.genre ? `（${s.genre}）` : ''}`);
     console.log(`   ${s.address}`);
-    console.log(`   最終掲載確認: ${s.lastSeenOn} → 解約検出: ${s.delistedOn}`);
-    console.log(`   解約前の予約状況: ${s.hadReservation ? 'ネット予約も不可だった' : '不明'} / ページ: ${s.url}`);
+    console.log(`   最終掲載確認: ${fmtDate(s.lastSeenAt)} → 解約検出: ${fmtDate(s.delistedAt)}`);
+    console.log(`   解約前の予約状況: ${hadReservation ? 'ネット予約も不可だった' : '不明'} / ページ: ${s.url || `https://www.hotpepper.jp/str${s.id}/`}`);
     // 解約前に最後に確認できた店舗情報（架電・商談の参考情報。ページ自体はもう見られない）
     if (s.catch) console.log(`   キャッチ: ${s.catch}`);
     if (s.budget) console.log(`   予算: ${s.budget}`);
     if (s.open || s.close) console.log(`   営業時間: ${s.open || '不明'}${s.close ? ` / 定休日: ${s.close}` : ''}`);
     if (s.access) console.log(`   アクセス: ${s.access}`);
+    if (g.items.length > 1) {
+      console.log(`   同一住所に${g.items.length}件の掲載（重複掲載の可能性）: ${g.items.slice(1).map(o => o.name).join(' / ')}`);
+    }
   }
 
   if (CSV_PATH) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'キャッチコピー', '予算', '営業時間', '定休日', 'アクセス', 'ホットペッパーURL'].map(esc).join(','),
-      ...delisted.map(s => [s.name, s.genre, s.area, s.address, s.lastSeenOn, s.delistedOn, s.hadReservation ? 'ネット予約も不可だった' : '不明', s.catch, s.budget, s.open, s.close, s.access, s.url].map(esc).join(',')),
+      ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'キャッチコピー', '予算', '営業時間', '定休日', 'アクセス', '同一住所の重複掲載件数', 'ホットペッパーURL'].map(esc).join(','),
+      ...groups.map(g => {
+        const s = g.primary;
+        return [
+          s.name, s.genre, s.area, s.address, fmtDate(s.lastSeenAt), fmtDate(s.delistedAt),
+          s.reservationLostAt ? 'ネット予約も不可だった' : '不明',
+          s.catch, s.budget, s.open, s.close, s.access,
+          g.items.length, s.url || `https://www.hotpepper.jp/str${s.id}/`,
+        ].map(esc).join(',');
+      }),
     ];
     // Excelで文字化けしないようBOM付きUTF-8で出力
     await writeFile(CSV_PATH, '\uFEFF' + rows.join('\r\n'));

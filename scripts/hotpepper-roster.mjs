@@ -253,15 +253,30 @@ export function isBootstrapRun(prevUpdatedAt) {
   return !prevUpdatedAt;
 }
 
+// 再掲載時に、解約によって自動付与されただけ（実際のページ確認を経ていない）の
+// 予約不可フラグを引き継いでしまわないための判定。解約処理（newlyDelisted）は
+// reservable:trueだった店が消えた瞬間、reservationSuspectedAt/reservationLostAtを
+// delistedAtと同じstampで機械的にセットする（「解約＝当然予約もできない」とみなすだけで、
+// 実際にcheckReservableでページを見て確認したわけではない）。そのため2つのタイムスタンプが
+// delistedAtと完全に一致する場合だけを「解約起因の合成フラグ」とみなして再掲載時に消す。
+// 解約前から独立してcheckReservableで確認済み（タイムスタンプが解約日と異なる）だった
+// 予約不可は、実チェックに基づく本物のシグナルなので誤って消してはいけない。
+export function shouldClearSyntheticLostFlags(shop) {
+  return !!shop.delistedAt &&
+    shop.reservationLostAt === shop.delistedAt &&
+    shop.reservationSuspectedAt === shop.delistedAt;
+}
+
 async function loadRoster() {
   try {
     const json = JSON.parse(await readFile(ROSTER_PATH, 'utf-8'));
     return {
       updatedAt: json.updatedAt || '',
       shops: json.shops && typeof json.shops === 'object' ? json.shops : {},
+      staleRuns: Number.isFinite(json.staleRuns) ? json.staleRuns : 0,
     };
   } catch {
-    return { updatedAt: '', shops: {} };
+    return { updatedAt: '', shops: {}, staleRuns: 0 };
   }
 }
 
@@ -295,6 +310,18 @@ export async function main() {
     throw new Error(`fetched ${current.size} shops (prev ${prevActive}); aborting roster update`);
   }
 
+  // 掲載店数が何回連続でぴったり同じかを記録する。こちら側の検出ロジックは正常でも、
+  // ホットペッパー側の掲載データ自体がしばらく更新されないと「新規掲載・解約とも
+  // 何も検出されない」状態になりうる（2026-07-19に千葉・神奈川・埼玉で実際に24時間以上
+  // 発生し、掲載店IDの中身が1件も変化していないことまで確認した）。バグではなく先方の
+  // データ更新頻度に起因する可能性が高いが、気づく手段が無いと「検出が壊れたのでは」と
+  // 毎回手作業で調べることになるため、一定回数続いたらActionsログに出す
+  const STALE_NOTICE_THRESHOLD = 24; // 24回（1時間おき運用なら約1日）
+  const staleRuns = current.size === prevActive ? prev.staleRuns + 1 : 0;
+  if (staleRuns > 0 && staleRuns % STALE_NOTICE_THRESHOLD === 0) {
+    console.log(`::notice::${ACTIVE_PREF.name}: 掲載店数（${current.size}）が${staleRuns}回連続で変化していません（約${Math.round(staleRuns / 24)}日）。当ツールの検出ロジックの不具合ではなく、ホットペッパー側の掲載データ自体がまだ更新されていない可能性があります`);
+  }
+
   const bootstrap = isBootstrapRun(prev.updatedAt);
 
   // 台帳へマージ: 今回見えた店は掲載情報とlastSeenAtを更新、見えなかった店はそのまま残す
@@ -308,20 +335,35 @@ export async function main() {
     } else {
       // reservable系フィールドは維持しつつ、掲載情報だけ更新
       shops[id] = { ...shops[id], ...s, lastSeenAt: stamp };
-      if (shops[id].delistedAt) delete shops[id].delistedAt; // 再掲載＝解約から復帰
+      if (shops[id].delistedAt) {
+        if (shouldClearSyntheticLostFlags(shops[id])) {
+          delete shops[id].reservationSuspectedAt;
+          delete shops[id].reservationLostAt;
+          delete shops[id].reservable; // 未確認状態に戻し、次のネット予約チェックで改めて確定させる
+        }
+        delete shops[id].delistedAt; // 再掲載＝解約から復帰
+      }
     }
   }
 
   // ── ネット予約可否チェック（ローテーション） ──
-  // 掲載中の店のうち、①現在アタックリストに載っている店・疑い中の店を毎回優先的に
-  // 再チェックし、②残り枠は未チェック・チェックが古い店から順に確認する。
+  // 掲載中の店のうち、①現在アタックリストに載っている店・疑い中の店、②新規掲載検出済み
+  // だがまだ一度もチェックできていない店、を毎回優先的にチェックし、③残り枠は未チェック・
+  // チェックが古い店から順に確認する。
   // ①を優先しないと、予約可能に戻った店が次に選ばれるまで（東京なら最大2週間ほど）
   // アタックリストに載ったままになってしまう。また疑い中の店（1回目検出済み）を
   // 優先することで、2回目の確認（確定 or 解除）もできるだけ早く行われるようにする。
+  // ②を優先しないと、東京都のように掲載数が多い県では「未チェックの店」全体の順番待ちに
+  // 埋もれてしまい、新規掲載（予約可）リストへの反映が何日も遅れる（実例: 2026-07-18時点で
+  // 東京都で335件が新規掲載検出済みのままネット予約チェック未着手だった）。
+  // 一度でもチェック済みならreservableCheckedAtが付くため、②の優先対象からは自然に外れる
+  // （元々ネット予約が無い店を毎回優先させ続けることはない）。
   const listedIds = Object.keys(shops).filter(id => shops[id].lastSeenAt === stamp);
   const byCheckedAtAsc = (a, b) => Date.parse(shops[a].reservableCheckedAt || 0) - Date.parse(shops[b].reservableCheckedAt || 0);
-  const priorityIds = listedIds.filter(id => shops[id].reservationLostAt || shops[id].reservationSuspectedAt).sort(byCheckedAtAsc);
-  const restIds = listedIds.filter(id => !shops[id].reservationLostAt && !shops[id].reservationSuspectedAt).sort(byCheckedAtAsc);
+  const isPriority = (id) => !!(shops[id].reservationLostAt || shops[id].reservationSuspectedAt ||
+    (shops[id].newlyListedAt && !shops[id].reservableCheckedAt));
+  const priorityIds = listedIds.filter(isPriority).sort(byCheckedAtAsc);
+  const restIds = listedIds.filter(id => !isPriority(id)).sort(byCheckedAtAsc);
   const checkQueue = [...priorityIds, ...restIds].slice(0, RESERVE_CHECK_BATCH);
   console.log(`[info] ネット予約チェック対象: ${checkQueue.length} 件（掲載中 ${listedIds.length} 件中、優先再チェック ${priorityIds.length} 件）`);
 
@@ -451,6 +493,7 @@ export async function main() {
     updatedAt: stamp,
     pref: ACTIVE_PREF.id,
     activeCount: current.size,
+    staleRuns,
     reservationLostCount: reservationLostAllRaw.length,
     delistedCount: delistedAllRaw.length,
     newlyListedCount: newlyListedAllRaw.length,
@@ -477,7 +520,7 @@ export async function main() {
     activeCount: current.size,
     items: newlyListedAll,
   }, null, 1));
-  console.log(`[info] 台帳更新: 掲載中 ${current.size} / 新規 ${added} / 予約不可(累計) ${reservationLostAllRaw.length}（手動除外 ${excludedCount}） / 解約(累計) ${delistedAllRaw.length} / 新規掲載(予約可,累計) ${newlyListedAllRaw.length} / 疑い中 ${listedIds.filter(id => shops[id].reservationSuspectedAt && !shops[id].reservationLostAt).length} / 掃除 ${pruned}`);
+  console.log(`[info] 台帳更新: 掲載中 ${current.size}（同数連続 ${staleRuns}回） / 新規 ${added} / 予約不可(累計) ${reservationLostAllRaw.length}（手動除外 ${excludedCount}） / 解約(累計) ${delistedAllRaw.length} / 新規掲載(予約可,累計) ${newlyListedAllRaw.length} / 疑い中 ${listedIds.filter(id => shops[id].reservationSuspectedAt && !shops[id].reservationLostAt).length} / 掃除 ${pruned}`);
   console.log(`[info] wrote ${ROSTER_PATH} / ${LOST_PATH} / ${DELISTED_PATH} / ${NEWLY_LISTED_PATH}`);
 }
 
