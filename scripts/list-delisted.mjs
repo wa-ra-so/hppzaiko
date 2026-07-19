@@ -66,7 +66,7 @@ async function main() {
   for (const s of delisted) {
     console.log(`・${s.name}${s.genre ? `（${s.genre}）` : ''}`);
     console.log(`   ${s.address}`);
-    console.log(`   最終掲載確認: ${s.lastSeenOn} → 解約検出: ${s.delistedOn}（この日付はホットペッパー側の掲載消失に気づいた日です。実際の閉店日ではなく、掲載が閉店後もホットペッパー側にしばらく残っていた場合はそれより前に閉店している可能性があります）`);
+    console.log(`   最終掲載確認: ${s.lastSeenOn} → 解約検出: ${s.delistedOn}`);
     console.log(`   解約前の予約状況: ${s.hadReservation ? 'ネット予約も不可だった' : '不明'} / ページ: ${s.url}`);
     // 解約前に最後に確認できた店舗情報（架電・商談の参考情報。ページ自体はもう見られない）
     if (s.catch) console.log(`   キャッチ: ${s.catch}`);
