@@ -56,6 +56,7 @@ async function main() {
     const s = g.primary;
     console.log(`・${s.name}${s.genre ? `（${s.genre}）` : ''}`);
     console.log(`   ${s.address}`);
+    if (s.tel) console.log(`   電話: ${s.tel}`);
     console.log(`   新規掲載検出: ${fmtDate(s.newlyListedAt)}（全件チェックは実行のたびに走るため、実際の掲載開始とのズレは運用間隔程度です） / ページ: ${s.url || `https://www.hotpepper.jp/str${s.id}/`}`);
     if (g.items.length > 1) {
       console.log(`   同一住所に${g.items.length}件の掲載（重複掲載の可能性）: ${g.items.slice(1).map(o => o.name).join(' / ')}`);
@@ -65,10 +66,10 @@ async function main() {
   if (CSV_PATH) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['店名', 'ジャンル', 'エリア', '住所', '新規掲載検出日', '同一住所の重複掲載件数', 'ホットペッパーURL'].map(esc).join(','),
+      ['店名', 'ジャンル', 'エリア', '住所', '電話番号', '新規掲載検出日', '同一住所の重複掲載件数', 'ホットペッパーURL'].map(esc).join(','),
       ...groups.map(g => {
         const s = g.primary;
-        return [s.name, s.genre, s.area, s.address, fmtDate(s.newlyListedAt), g.items.length, s.url || `https://www.hotpepper.jp/str${s.id}/`].map(esc).join(',');
+        return [s.name, s.genre, s.area, s.address, s.tel, fmtDate(s.newlyListedAt), g.items.length, s.url || `https://www.hotpepper.jp/str${s.id}/`].map(esc).join(',');
       }),
     ];
     // Excelで文字化けしないようBOM付きUTF-8で出力

@@ -56,6 +56,7 @@ async function main() {
     const hadReservation = !!s.reservationLostAt;
     console.log(`・${s.name}${s.genre ? `（${s.genre}）` : ''}`);
     console.log(`   ${s.address}`);
+    if (s.tel) console.log(`   電話: ${s.tel}`);
     console.log(`   最終掲載確認: ${fmtDate(s.lastSeenAt)} → 解約検出: ${fmtDate(s.delistedAt)}`);
     console.log(`   解約前の予約状況: ${hadReservation ? 'ネット予約も不可だった' : '不明'} / ページ: ${s.url || `https://www.hotpepper.jp/str${s.id}/`}`);
     // 解約前に最後に確認できた店舗情報（架電・商談の参考情報。ページ自体はもう見られない）
@@ -71,11 +72,11 @@ async function main() {
   if (CSV_PATH) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'キャッチコピー', '予算', '営業時間', '定休日', 'アクセス', '同一住所の重複掲載件数', 'ホットペッパーURL'].map(esc).join(','),
+      ['店名', 'ジャンル', 'エリア', '住所', '電話番号', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'キャッチコピー', '予算', '営業時間', '定休日', 'アクセス', '同一住所の重複掲載件数', 'ホットペッパーURL'].map(esc).join(','),
       ...groups.map(g => {
         const s = g.primary;
         return [
-          s.name, s.genre, s.area, s.address, fmtDate(s.lastSeenAt), fmtDate(s.delistedAt),
+          s.name, s.genre, s.area, s.address, s.tel, fmtDate(s.lastSeenAt), fmtDate(s.delistedAt),
           s.reservationLostAt ? 'ネット予約も不可だった' : '不明',
           s.catch, s.budget, s.open, s.close, s.access,
           g.items.length, s.url || `https://www.hotpepper.jp/str${s.id}/`,

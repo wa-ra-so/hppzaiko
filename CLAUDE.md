@@ -26,8 +26,8 @@
 | `scripts/list-reservation-lost.mjs` | 台帳からネット予約不可になった店をCLI出力・CSV書き出しするヘルパー |
 | `scripts/list-delisted.mjs` | 台帳から解約（掲載終了）した店をCLI出力・CSV書き出しするヘルパー |
 | `scripts/list-newly-listed.mjs` | 台帳から新規掲載（ネット予約可）した店をCLI出力・CSV書き出しするヘルパー |
-| `scripts/test-data.mjs` | 判定ロジック（`applyReservableCheck`/`checkReservable`/`hasMinDelistedTenure`/`isBootstrapRun`）の単体テスト＋`data/*.json` の整合性チェック。台帳更新の前後でActionsから実行し、ロジックの劣化や壊れたデータをコミットしない |
-| `data/hotpepper-roster*.json` | 県ごとのホットペッパー掲載台帳（店舗IDごとの firstSeenAt / lastSeenAt / reservable / reservableCheckedAt / lastReservableAt / reservationSuspectedAt / reservationLostAt / delistedAt / newlyListedAt / catch / budget / open / close / access。Actionsが自動コミット） |
+| `scripts/test-data.mjs` | 判定ロジック（`applyReservableCheck`/`checkReservable`/`extractPhone`/`hasMinDelistedTenure`/`isBootstrapRun`）の単体テスト＋`data/*.json` の整合性チェック。台帳更新の前後でActionsから実行し、ロジックの劣化や壊れたデータをコミットしない |
+| `data/hotpepper-roster*.json` | 県ごとのホットペッパー掲載台帳（店舗IDごとの firstSeenAt / lastSeenAt / reservable / reservableCheckedAt / lastReservableAt / reservationSuspectedAt / reservationLostAt / delistedAt / newlyListedAt / tel / catch / budget / open / close / access。Actionsが自動コミット） |
 | `data/hotpepper-reservation-lost*.json` | 台帳から抽出したネット予約不可店（確定分・手動除外を除く）のみの軽量版（`index.html` が読む） |
 | `data/hotpepper-delisted*.json` | 台帳から抽出した解約（掲載終了）店（手動除外を除く）のみの軽量版（`index.html` が読む） |
 | `data/hotpepper-newly-listed*.json` | 台帳から抽出した新規掲載（ネット予約可・手動除外を除く）店のみの軽量版（`index.html` が読む） |
@@ -202,6 +202,31 @@ index.htmlの「HP掲載店数（API）」KPIには直近30日の純増減（新
 ときだけ`reservationSuspectedAt`/`reservationLostAt`/`reservable`を消して未確認状態に
 戻す（`shouldClearSyntheticLostFlags`）。解約前から独立して`checkReservable`で確認済み
 だった予約不可（タイムスタンプが解約日と異なる）は本物のシグナルなので消さない。
+
+## 電話番号の取得（2026-07-19追加）
+
+グルメサーチAPIには電話番号フィールドが無いため台帳に載せられずにいたが、
+「HotPepper本体のページに架電すると、モバイルSafari側のアプリ誘導バナーや
+ネット予約検索の浮遊UIが「電話する」ボタンに重なり、実質押せないことがある」
+という実運用上の問題が見つかった（架電が営業の主要動線であるにもかかわらず、
+毎回このリンク先ページで電話ボタンを探して押す手間・失敗リスクが発生していた）。
+
+対策として、ネット予約チェック（`checkReservable`）が既に取得している店舗ページ
+本体のHTMLから電話番号も同時に抽出し（`extractPhone`）、アタックリスト自体に
+`tel:`リンクとして直接表示するようにした。別リクエスト・別APIは使わない
+（以前検討した外部電話番号APIとの名寄せは、精度リスクがあるため見送っていたが、
+今回の方式はHotPepper自身のページから直接取るため名寄せの問題が発生しない）。
+
+抽出は`<a href="tel:...">`を最優先し、無ければJSON-LD構造化データの`"telephone"`
+フィールドを試す。どちらも無ければ`tel`は設定せず、既存の値も消さない（reservable
+判定と同じ「わからなければ触らない」方針）。ネット予約チェックと同じローテーション
+（1日24回・800件/回）でしか更新されないため、フィールド追加以前からチェック済み
+だった店は次にローテーションが回ってくるまで`tel`が空欄のままになる。
+
+`tel`が取得できた店には、`index.html`の各行に緑色の「電話する」ボタン
+（`tel:`リンク）を表示し、CSVにも「電話番号」列を追加した。CLIスクリプト
+（`list-reservation-lost.mjs`/`list-delisted.mjs`/`list-newly-listed.mjs`）も
+同様に出力する。
 
 ## 検出精度のための仕組み（誤検出対策）
 

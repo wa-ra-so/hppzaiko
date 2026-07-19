@@ -103,6 +103,8 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
 .tag-area{background:var(--blue-pale);color:var(--blue);border:1px solid var(--blue-light);}
 .tag-genre{background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0;}
 .tag-listed{background:var(--bg);color:var(--mid);border:1px solid var(--faint);font-weight:500;}
+.tag-tel{background:var(--green);color:#fff;border:1px solid var(--green);font-weight:700;text-decoration:none;font-size:11.5px;padding:4px 10px;}
+.tag-tel:hover{opacity:.85;}
 
 .snapshot-details{margin-top:6px;}
 .snapshot-details summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--blue);user-select:none;}
@@ -164,8 +166,8 @@ const VIEWS = {
     kpiLabel: 'ネット予約不可（累計）',
     subLabel: 'ホットペッパーのネット予約カレンダーが使えなくなった店舗',
     emptyLabel: 'ネット予約不可店',
-    csvCols: ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', '同一住所の重複掲載件数', 'ホットペッパーURL'],
-    csvRow: (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastReservableAt), fmtDate(it.reservationSuspectedAt) || fmtDate(it.reservationLostAt), fmtDate(it.reservationLostAt), n, strUrl(it)],
+    csvCols: ['店名', 'ジャンル', 'エリア', '住所', '電話番号', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', '同一住所の重複掲載件数', 'ホットペッパーURL'],
+    csvRow: (it, n) => [it.name, it.genre, it.area, it.address, it.tel, fmtDate(it.lastReservableAt), fmtDate(it.reservationSuspectedAt) || fmtDate(it.reservationLostAt), fmtDate(it.reservationLostAt), n, strUrl(it)],
   },
   delisted: {
     label: '解約（掲載終了）',
@@ -174,8 +176,8 @@ const VIEWS = {
     kpiLabel: '解約（累計）',
     subLabel: 'ホットペッパーの掲載自体が終了した店舗（未入金による強制解約なども含む）',
     emptyLabel: '解約店',
-    csvCols: ['店名', 'ジャンル', 'エリア', '住所', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'キャッチコピー', '予算', '営業時間', '定休日', 'アクセス', '同一住所の重複掲載件数', 'ホットペッパーURL'],
-    csvRow: (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.lastSeenAt), fmtDate(it.delistedAt), it.reservationLostAt ? 'ネット予約も不可だった' : '不明', it.catch, it.budget, it.open, it.close, it.access, n, strUrl(it)],
+    csvCols: ['店名', 'ジャンル', 'エリア', '住所', '電話番号', '最終掲載確認日', '解約検出日', '解約前の予約状況', 'キャッチコピー', '予算', '営業時間', '定休日', 'アクセス', '同一住所の重複掲載件数', 'ホットペッパーURL'],
+    csvRow: (it, n) => [it.name, it.genre, it.area, it.address, it.tel, fmtDate(it.lastSeenAt), fmtDate(it.delistedAt), it.reservationLostAt ? 'ネット予約も不可だった' : '不明', it.catch, it.budget, it.open, it.close, it.access, n, strUrl(it)],
   },
   newlyListed: {
     label: '新規掲載（予約可）',
@@ -184,8 +186,8 @@ const VIEWS = {
     kpiLabel: '新規掲載（累計）',
     subLabel: 'ホットペッパーに新しく掲載され、ネット予約も使えるようになった店舗',
     emptyLabel: '新規掲載店',
-    csvCols: ['店名', 'ジャンル', 'エリア', '住所', '新規掲載検出日', '同一住所の重複掲載件数', 'ホットペッパーURL'],
-    csvRow: (it, n) => [it.name, it.genre, it.area, it.address, fmtDate(it.newlyListedAt), n, strUrl(it)],
+    csvCols: ['店名', 'ジャンル', 'エリア', '住所', '電話番号', '新規掲載検出日', '同一住所の重複掲載件数', 'ホットペッパーURL'],
+    csvRow: (it, n) => [it.name, it.genre, it.area, it.address, it.tel, fmtDate(it.newlyListedAt), n, strUrl(it)],
   },
 };
 const VIEW_BY_SLUG = Object.fromEntries(Object.entries(VIEWS).filter(([, v]) => v.slug).map(([id, v]) => [v.slug, id]));
@@ -444,6 +446,15 @@ function dupNote(group) {
   return `<div class="tag-row"><span class="tag tag-listed">同一住所に${group.items.length}件の掲載（重複掲載の可能性）: ${others}</span></div>`;
 }
 
+// 店舗ページの「電話する」ボタンはHotPepper側のアプリ誘導バナーに隠れて押せないことがある
+// ため、ネット予約チェックのついでに拾えた電話番号があれば自前でtel:リンクを出す
+// （ページに移動せず一覧から直接架電できる）。取得できていない店（フィールド追加前に
+// 既にチェック済みだった店など）は表示しない
+function telRow(it) {
+  if (!it.tel) return '';
+  return `<div class="tag-row"><a class="tag tag-tel" href="tel:${esc(it.tel)}">電話する ${esc(it.tel)}</a></div>`;
+}
+
 function rowLost(group) {
   const it = group.primary;
   const d = fmtDate(it.reservationLostAt);
@@ -463,6 +474,7 @@ function rowLost(group) {
     <div class="row-main">
       <div class="row-title"><a href="${esc(strUrl(it))}" target="_blank" rel="noopener">${esc(it.name)}</a></div>
       <div class="row-addr">${esc(it.address)}</div>
+      ${telRow(it)}
       <div class="tag-row">
         ${it.area ? `<span class="tag tag-area">${esc(it.area)}</span>` : ''}
         ${it.genre ? `<span class="tag tag-genre">${esc(it.genre)}</span>` : ''}
@@ -506,6 +518,7 @@ function rowDelisted(group) {
     <div class="row-main">
       <div class="row-title"><a href="${esc(strUrl(it))}" target="_blank" rel="noopener">${esc(it.name)}</a></div>
       <div class="row-addr">${esc(it.address)}</div>
+      ${telRow(it)}
       <div class="tag-row">
         ${it.area ? `<span class="tag tag-area">${esc(it.area)}</span>` : ''}
         ${it.genre ? `<span class="tag tag-genre">${esc(it.genre)}</span>` : ''}
@@ -530,6 +543,7 @@ function rowNewlyListed(group) {
     <div class="row-main">
       <div class="row-title"><a href="${esc(strUrl(it))}" target="_blank" rel="noopener">${esc(it.name)}</a></div>
       <div class="row-addr">${esc(it.address)}</div>
+      ${telRow(it)}
       <div class="tag-row">
         ${it.area ? `<span class="tag tag-area">${esc(it.area)}</span>` : ''}
         ${it.genre ? `<span class="tag tag-genre">${esc(it.genre)}</span>` : ''}
