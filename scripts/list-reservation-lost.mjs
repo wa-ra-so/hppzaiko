@@ -1,6 +1,7 @@
 // 掲載台帳（data/hotpepper-roster*.json）から「ネット予約ができなくなった店」
 // ＝以前はホットペッパーのネット予約カレンダーが使えたのに、今は使えなくなった店を
 // アタックリストとして出力する。data/manual-overrides.json で手動除外された店は含めない。
+// 同じ物理店舗が複数の店舗IDを持つケースは住所ベースで束ね、index.htmlと同じく1軒として扱う。
 //
 // 使い方:
 //   node scripts/list-reservation-lost.mjs --pref=chiba            # 直近90日を表示
@@ -13,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getPrefFromArgv } from './prefectures.mjs';
 import { loadManualOverrides } from './hotpepper-roster.mjs';
+import { groupByAddress } from './address-dedup.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ACTIVE_PREF = getPrefFromArgv();
@@ -42,36 +44,41 @@ async function main() {
   const excludedIds = await loadManualOverrides();
   const cutoff = Date.now() - DAYS * 24 * 60 * 60 * 1000;
 
-  const lost = Object.entries(shops)
+  const lostRaw = Object.entries(shops)
     .filter(([id, s]) => s.reservationLostAt && Date.parse(s.reservationLostAt) >= cutoff && !excludedIds.has(id))
-    .map(([id, s]) => ({
-      id,
-      name: s.name,
-      address: s.address,
-      genre: s.genre,
-      area: s.area,
-      lastReservableOn: fmtDate(s.lastReservableAt),
-      suspectedOn: fmtDate(s.reservationSuspectedAt) || fmtDate(s.reservationLostAt), // 1回目検出日
-      lostOn: fmtDate(s.reservationLostAt), // 2回目確認・確定日
-      url: s.url || `https://www.hotpepper.jp/str${id}/`,
-    }))
-    .sort((a, b) => (a.lostOn < b.lostOn ? 1 : -1));
+    .map(([id, s]) => ({ id, ...s }));
+  const groups = groupByAddress(lostRaw, 'reservationLostAt');
+  const dupCount = lostRaw.length - groups.length;
 
   console.log(`■ ${ACTIVE_PREF.name} ネット予約不可になった店（直近${DAYS}日 / 台帳更新: ${fmtDate(updatedAt)}）`);
-  console.log(`  該当: ${lost.length} 店\n`);
-  for (const s of lost) {
-    const range = s.lastReservableOn ? `${s.lastReservableOn} 〜 ${s.suspectedOn} の間` : `${s.suspectedOn} 以前`;
+  console.log(`  該当: ${groups.length} 店${dupCount > 0 ? `（同一住所の重複掲載 ${dupCount} 件を集約済み）` : ''}\n`);
+  for (const g of groups) {
+    const s = g.primary;
+    const lastReservableOn = fmtDate(s.lastReservableAt);
+    const suspectedOn = fmtDate(s.reservationSuspectedAt) || fmtDate(s.reservationLostAt);
+    const lostOn = fmtDate(s.reservationLostAt);
+    const range = lastReservableOn ? `${lastReservableOn} 〜 ${suspectedOn} の間` : `${suspectedOn} 以前`;
     console.log(`・${s.name}${s.genre ? `（${s.genre}）` : ''}`);
     console.log(`   ${s.address}`);
     console.log(`   ネット予約不可になった時期: ${range}（正確な日は特定できません。チェックは数日おきのため）`);
-    console.log(`   1回目検出: ${s.suspectedOn} → 2回目確認(確定): ${s.lostOn} / ページ: ${s.url}`);
+    console.log(`   1回目検出: ${suspectedOn} → 2回目確認(確定): ${lostOn} / ページ: ${s.url || `https://www.hotpepper.jp/str${s.id}/`}`);
+    if (g.items.length > 1) {
+      console.log(`   同一住所に${g.items.length}件の掲載（重複掲載の可能性）: ${g.items.slice(1).map(o => o.name).join(' / ')}`);
+    }
   }
 
   if (CSV_PATH) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', 'ホットペッパーURL'].map(esc).join(','),
-      ...lost.map(s => [s.name, s.genre, s.area, s.address, s.lastReservableOn, s.suspectedOn, s.lostOn, s.url].map(esc).join(',')),
+      ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', '同一住所の重複掲載件数', 'ホットペッパーURL'].map(esc).join(','),
+      ...groups.map(g => {
+        const s = g.primary;
+        return [
+          s.name, s.genre, s.area, s.address,
+          fmtDate(s.lastReservableAt), fmtDate(s.reservationSuspectedAt) || fmtDate(s.reservationLostAt), fmtDate(s.reservationLostAt),
+          g.items.length, s.url || `https://www.hotpepper.jp/str${s.id}/`,
+        ].map(esc).join(',');
+      }),
     ];
     // Excelで文字化けしないようBOM付きUTF-8で出力
     await writeFile(CSV_PATH, '\uFEFF' + rows.join('\r\n'));
