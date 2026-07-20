@@ -1,0 +1,69 @@
+name: 台帳更新の見張り番（watchdog）
+
+# アタックリストの自動更新（update-attack-list.yml）はGitHub Actionsのschedule
+# トリガー（1時間おき）で動くが、GitHub公式が「毎時ちょうど（:00）は高負荷で
+# スケジュール実行が遅延・スキップされうる」と明記している通り、2026-07-20に
+# 実際4時間以上cronが1回も発火しない事象が発生した（手動起動でしか復旧できなかった）。
+#
+# その保険として、台帳データ（data/hotpepper-roster*.json）の最終更新からの
+# 経過時間を見張り、一定時間（80分。1時間おきの想定＋実行時間20分＋バッファ）を
+# 超えて更新が無ければ、本体ワークフローを代わりに手動起動する。
+# 本体とは違う分（:07,:27,:47）で走らせ、同じタイミングでの発火失敗に
+# 巻き込まれにくくしている（が、GitHub側のスケジューラ自体が広く止まった場合は
+# こちらも発火しないため、100%の保証にはならない）。
+on:
+  schedule:
+    - cron: '7,27,47 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  check-and-trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 台帳の最終更新からの経過時間を確認
+        id: check
+        run: |
+          latest=$(node -e "
+            const fs = require('fs');
+            const files = fs.readdirSync('data').filter(f => f.startsWith('hotpepper-roster'));
+            let newest = 0;
+            for (const f of files) {
+              const j = JSON.parse(fs.readFileSync('data/' + f, 'utf-8'));
+              const t = Date.parse(j.updatedAt || 0);
+              if (t > newest) newest = t;
+            }
+            console.log(newest);
+          ")
+          now=$(date +%s%3N)
+          age_min=$(( (now - latest) / 60000 ))
+          echo "[info] 台帳の最終更新から ${age_min} 分経過"
+          echo "age_min=${age_min}" >> "$GITHUB_OUTPUT"
+
+      - name: 本体ワークフローが実行中/待機中でないか確認（二重起動防止）
+        id: running
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          in_progress=$(gh api "repos/${{ github.repository }}/actions/workflows/update-attack-list.yml/runs?status=in_progress" --jq '.total_count')
+          queued=$(gh api "repos/${{ github.repository }}/actions/workflows/update-attack-list.yml/runs?status=queued" --jq '.total_count')
+          echo "[info] in_progress=${in_progress} queued=${queued}"
+          busy=0
+          if [ "$in_progress" -gt 0 ] || [ "$queued" -gt 0 ]; then busy=1; fi
+          echo "busy=${busy}" >> "$GITHUB_OUTPUT"
+
+      - name: 80分以上更新が無ければ本体ワークフローを代わりに起動
+        if: steps.check.outputs.age_min > 80 && steps.running.outputs.busy == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "::warning::台帳の更新が80分以上ありません（定期実行が発火しなかった可能性）。update-attack-list.ymlを代わりに起動します"
+          gh workflow run update-attack-list.yml --ref main
