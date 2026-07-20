@@ -167,6 +167,19 @@ async function fetchAllShops(largeAreas) {
   return shops;
 }
 
+// 店舗ページのtel:リンク（電話する ボタン）から電話番号を抽出する。見つからなければ
+// JSON-LD構造化データの"telephone"を試す。どちらも無ければnull（既存のtelは消さず、
+// 次のローテーションで再チャレンジする＝reservableと同じ「わからなければ触らない」方針）。
+// グルメサーチAPIには電話番号フィールドが無いため、ネット予約チェックで既に取得している
+// 店舗ページ本体のHTMLから追加コスト無し（別リクエスト無し）で抽出する。
+export function extractPhone(html) {
+  const hrefMatch = html.match(/href=["']tel:([0-9+\-]{8,15})["']/i);
+  if (hrefMatch) return hrefMatch[1];
+  const jsonLdMatch = html.match(/"telephone"\s*:\s*"([0-9+\-() ]{8,20})"/i);
+  if (jsonLdMatch) return jsonLdMatch[1].trim();
+  return null;
+}
+
 // 店舗ページの <title> にある「＜ネット予約可＞」表記の有無でネット予約可否を判定する。
 // true/false が返らずnull（判定不能）になるのは以下のいずれか：
 //   - ページ取得に失敗した（HTTPエラー・タイムアウト等）
@@ -175,6 +188,8 @@ async function fetchAllShops(largeAreas) {
 //     裏取り文言が無い（HotPepper側のタイトル表記仕様が変わった可能性があるため、
 //     ここで false と決め打ちせず判定不能として今回はスキップする）
 // 判定不能時は既存の台帳の状態を壊さない（reservableを更新しない）。
+// 戻り値は { reservable, tel }。telはページが取得できた回だけ抽出を試みるため、
+// reservableがnullの回でもtelだけは取れることがある（呼び出し側で個別に扱う）。
 export async function checkReservable(url) {
   try {
     const res = await fetch(url, {
@@ -182,17 +197,18 @@ export async function checkReservable(url) {
       cache: 'no-store', // 中間キャッシュ経由で古いページを拾わないようにする
       signal: AbortSignal.timeout(RESERVE_PAGE_TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { reservable: null, tel: null };
     const html = await res.text();
+    const tel = extractPhone(html);
     const m = html.match(/<title>([^<]*)<\/title>/i);
-    if (!m) return null;
-    if (m[1].includes('ネット予約可')) return true;
+    if (!m) return { reservable: null, tel };
+    if (m[1].includes('ネット予約可')) return { reservable: true, tel };
     // タイトルに「ネット予約可」が無い＝不可の可能性。本文の実際の予約不可メッセージでも
     // 裏取りできた場合のみ false とする（タイトル表記だけに依存しないための二重チェック）
-    if (html.includes('現在ネット予約を受け付けていません')) return false;
-    return null;
+    if (html.includes('現在ネット予約を受け付けていません')) return { reservable: false, tel };
+    return { reservable: null, tel };
   } catch {
-    return null;
+    return { reservable: null, tel: null };
   }
 }
 
@@ -374,10 +390,15 @@ export async function main() {
   let checkFailed = 0;
   await mapWithConcurrency(checkQueue, RESERVE_CHECK_CONCURRENCY, async (id) => {
     const s = shops[id];
-    const result = await checkReservable(s.url);
-    if (result === null) { checkFailed++; return; }
+    const { reservable: result, tel } = await checkReservable(s.url);
+    if (result === null) {
+      checkFailed++;
+      if (tel) shops[id] = { ...s, tel }; // reservable判定はできなくても電話番号だけ拾えることがある
+      return;
+    }
     checkedOk++;
     const { shop: updated, newlyConfirmedLost } = applyReservableCheck(s, result, stamp);
+    if (tel) updated.tel = tel;
     shops[id] = updated;
     if (newlyConfirmedLost) {
       newlyConfirmedFromCheck++;

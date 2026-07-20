@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { PREFECTURES } from './prefectures.mjs';
-import { applyReservableCheck, checkReservable, hasMinDelistedTenure, isBootstrapRun, shouldClearSyntheticLostFlags } from './hotpepper-roster.mjs';
+import { applyReservableCheck, checkReservable, extractPhone, hasMinDelistedTenure, isBootstrapRun, shouldClearSyntheticLostFlags } from './hotpepper-roster.mjs';
 import { normalizeAddress, groupByAddress } from './address-dedup.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -102,32 +102,65 @@ async function testCheckReservable() {
   try {
     // タイトルに「ネット予約可」あり → true
     globalThis.fetch = mockFetch(html('○○店＜ネット予約可＞'));
-    assert.equal(await checkReservable('https://example.test/'), true, 'title有: true');
+    assert.equal((await checkReservable('https://example.test/')).reservable, true, 'title有: true');
 
     // タイトルに無いが本文に不可メッセージあり → false（裏取りできた）
     globalThis.fetch = mockFetch(html('○○店', '現在ネット予約を受け付けていません'));
-    assert.equal(await checkReservable('https://example.test/'), false, 'title無+body裏取りあり: false');
+    assert.equal((await checkReservable('https://example.test/')).reservable, false, 'title無+body裏取りあり: false');
 
     // タイトルに無く本文にも不可メッセージが無い（＝仕様変更やbot判定ページの疑い）→ null（誤検出防止）
     globalThis.fetch = mockFetch(html('○○店', '通常の店舗紹介文'));
-    assert.equal(await checkReservable('https://example.test/'), null, 'title無+body裏取り無し: null（falseと決め打ちしない）');
+    assert.equal((await checkReservable('https://example.test/')).reservable, null, 'title無+body裏取り無し: null（falseと決め打ちしない）');
 
     // <title>自体が無い（想定外のページ）→ null
     globalThis.fetch = mockFetch('<html><body>no title here</body></html>');
-    assert.equal(await checkReservable('https://example.test/'), null, 'titleタグ無し: null');
+    assert.equal((await checkReservable('https://example.test/')).reservable, null, 'titleタグ無し: null');
 
     // HTTPエラー → null
     globalThis.fetch = async () => ({ ok: false });
-    assert.equal(await checkReservable('https://example.test/'), null, 'HTTPエラー: null');
+    assert.equal((await checkReservable('https://example.test/')).reservable, null, 'HTTPエラー: null');
 
     // fetch自体が例外 → null
     globalThis.fetch = async () => { throw new Error('network error'); };
-    assert.equal(await checkReservable('https://example.test/'), null, 'fetch例外: null');
+    assert.equal((await checkReservable('https://example.test/')).reservable, null, 'fetch例外: null');
 
-    ok('checkReservable: title/body二重チェックの単体テスト 6/6 パス');
+    // tel: リンクがあれば reservable の判定結果とは独立して電話番号も返す
+    globalThis.fetch = mockFetch(html('○○店＜ネット予約可＞', '<a href="tel:0312345678">電話する</a>'));
+    assert.equal((await checkReservable('https://example.test/')).tel, '0312345678', 'tel:リンクあり: 電話番号を抽出');
+
+    // ページ取得自体に失敗した場合はtelもnull
+    globalThis.fetch = async () => ({ ok: false });
+    assert.equal((await checkReservable('https://example.test/')).tel, null, 'HTTPエラー時: telもnull');
+
+    ok('checkReservable: title/body二重チェック・電話番号抽出の単体テスト 8/8 パス');
   } finally {
     globalThis.fetch = realFetch;
   }
+}
+
+// ── ①''extractPhone単体テスト（tel:リンク／JSON-LDからの電話番号抽出） ──
+function testExtractPhone() {
+  assert.equal(
+    extractPhone('<a href="tel:0312345678">電話する</a>'),
+    '0312345678',
+    'tel:リンク（数字のみ）から抽出',
+  );
+  assert.equal(
+    extractPhone('<a href="tel:03-1234-5678">電話する</a>'),
+    '03-1234-5678',
+    'tel:リンク（ハイフン付き）から抽出',
+  );
+  assert.equal(
+    extractPhone('<script type="application/ld+json">{"telephone":"03-1234-5678"}</script>'),
+    '03-1234-5678',
+    'tel:リンクが無くJSON-LDのtelephoneがあれば代わりに抽出',
+  );
+  assert.equal(
+    extractPhone('<p>電話でのお問い合わせはこちら</p>'),
+    null,
+    'どちらのパターンも無ければnull',
+  );
+  ok('extractPhone: 電話番号抽出の単体テスト 4/4 パス');
 }
 
 // ── ①''hasMinDelistedTenure単体テスト（新規掲載直後の店を解約と誤判定しないためのゲート） ──
@@ -343,6 +376,7 @@ async function checkNewlyListed(pref, roster, excludedIds) {
 async function main() {
   testApplyReservableCheck();
   await testCheckReservable();
+  testExtractPhone();
   testHasMinDelistedTenure();
   testIsBootstrapRun();
   testShouldClearSyntheticLostFlags();

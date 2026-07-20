@@ -60,6 +60,7 @@ async function main() {
     const range = lastReservableOn ? `${lastReservableOn} 〜 ${suspectedOn} の間` : `${suspectedOn} 以前`;
     console.log(`・${s.name}${s.genre ? `（${s.genre}）` : ''}`);
     console.log(`   ${s.address}`);
+    if (s.tel) console.log(`   電話: ${s.tel}`);
     console.log(`   ネット予約不可になった時期: ${range}（正確な日は特定できません。チェックは数日おきのため）`);
     console.log(`   1回目検出: ${suspectedOn} → 2回目確認(確定): ${lostOn} / ページ: ${s.url || `https://www.hotpepper.jp/str${s.id}/`}`);
     if (g.items.length > 1) {
@@ -70,11 +71,11 @@ async function main() {
   if (CSV_PATH) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['店名', 'ジャンル', 'エリア', '住所', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', '同一住所の重複掲載件数', 'ホットペッパーURL'].map(esc).join(','),
+      ['店名', 'ジャンル', 'エリア', '住所', '電話番号', '予約可能を最後に確認した日', '1回目検出日', '2回目確認(確定)日', '同一住所の重複掲載件数', 'ホットペッパーURL'].map(esc).join(','),
       ...groups.map(g => {
         const s = g.primary;
         return [
-          s.name, s.genre, s.area, s.address,
+          s.name, s.genre, s.area, s.address, s.tel,
           fmtDate(s.lastReservableAt), fmtDate(s.reservationSuspectedAt) || fmtDate(s.reservationLostAt), fmtDate(s.reservationLostAt),
           g.items.length, s.url || `https://www.hotpepper.jp/str${s.id}/`,
         ].map(esc).join(',');
