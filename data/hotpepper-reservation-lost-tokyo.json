@@ -1,6 +1,27 @@
 {
- "updatedAt": "2026-07-20T09:47:40.647Z",
+ "updatedAt": "2026-07-20T10:21:54.219Z",
  "pref": "tokyo",
  "activeCount": 33073,
- "items": []
+ "items": [
+  {
+   "id": "J000769699",
+   "name": "横濱魚萬 東大和市駅前店",
+   "address": "東京都東大和市南街５-92-10　1階",
+   "genre": "居酒屋",
+   "area": "東大和",
+   "url": "https://www.hotpepper.jp/strJ000769699/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:39:44.094Z",
+   "lastSeenAt": "2026-07-20T10:21:54.219Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-20T10:21:54.219Z",
+   "lastReservableAt": "2026-07-15T14:10:12.553Z",
+   "catch": "お得な飲み放題プラン有♪ 魚介を卓上で濱焼★",
+   "budget": "3000円",
+   "open": "月～木、日、祝日: 16:00～23:30 （料理L.O. 23:00 ドリンクL.O. 23:00）金、土: 16:00～翌2:00 （料理L.O. 翌1:30 ドリンクL.O. 翌1:30）",
+   "close": "なし",
+   "access": "西武拝島線東大和市駅改札出て左へ直進、徒歩2分。",
+   "reservationSuspectedAt": "2026-07-20T09:47:40.647Z",
+   "reservationLostAt": "2026-07-20T10:21:54.219Z"
+  }
+ ]
 }
