@@ -87,6 +87,12 @@ const LOST_SURGE_RATIO_THRESHOLD = 0.1; // チェック数に対する割合
 // 「解約」と誤判定しないため、一定期間継続して掲載が確認できていた店のみを対象にする。
 const MIN_DELISTED_TENURE_MS = 48 * 60 * 60 * 1000; // 48時間
 
+// Slack通知先（Incoming Webhook URL）。県ごとの環境変数（例: SLACK_WEBHOOK_CHIBA）が
+// 優先で、無ければ全県共通のSLACK_WEBHOOK_URLにフォールバックする。どちらも未設定なら
+// 通知自体を送らない（Slack連携は必須機能ではないため、設定漏れで実行を失敗させない）。
+const SLACK_WEBHOOK_URL = process.env[ACTIVE_PREF.slackWebhookEnv] || process.env.SLACK_WEBHOOK_URL || '';
+const SLACK_ITEM_LIMIT = 10; // 1メッセージに列挙する店舗数の上限（Slackメッセージの肥大防止）
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function mapWithConcurrency(items, limit, fn) {
@@ -283,6 +289,43 @@ export function shouldClearSyntheticLostFlags(shop) {
     shop.reservationSuspectedAt === shop.delistedAt;
 }
 
+// Slack通知本文を組み立てる（テスト容易化のため送信処理と分離）。
+// 3種の検出（予約不可確定・解約・新規掲載）のうち1件でもあれば非nullを返す。
+export function buildSlackMessage(pref, { lost, delisted, newlyListed }) {
+  const siteUrl = `https://wa-ra-so.github.io/hppzaiko/?pref=${pref.id}`;
+  const section = (label, items) => {
+    if (items.length === 0) return null;
+    const shown = items.slice(0, SLACK_ITEM_LIMIT)
+      .map(s => `• <${s.url}|${s.name}>（${s.area || s.address}）`).join('\n');
+    const rest = items.length > SLACK_ITEM_LIMIT ? `\n…他 ${items.length - SLACK_ITEM_LIMIT} 件` : '';
+    return `*${label} ${items.length}件*\n${shown}${rest}`;
+  };
+  const sections = [
+    section('予約不可（確定）', lost),
+    section('解約（掲載終了）', delisted),
+    section('新規掲載（ネット予約可・新規開拓リード）', newlyListed),
+  ].filter(Boolean);
+  if (sections.length === 0) return null;
+  return `*[${pref.name}] アタックリスト更新*\n${sections.join('\n')}\n${siteUrl}`;
+}
+
+// Slack Incoming Webhookへ投稿する。失敗しても台帳更新自体は失敗させない
+// （通知はあくまで補助であり、これで本処理が落ちると本末転倒なため）。
+async function notifySlack(text) {
+  if (!SLACK_WEBHOOK_URL || !text) return;
+  try {
+    const res = await fetch(SLACK_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) console.log(`::warning::Slack通知に失敗しました（HTTP ${res.status}）`);
+  } catch (err) {
+    console.log(`::warning::Slack通知に失敗しました: ${err.message || err}`);
+  }
+}
+
 async function loadRoster() {
   try {
     const json = JSON.parse(await readFile(ROSTER_PATH, 'utf-8'));
@@ -444,7 +487,7 @@ export async function main() {
   const newlyDelistedLost = [];
   for (const [id, s] of newlyDelisted) {
     shops[id] = { ...s, delistedAt: stamp };
-    newlyDelistedRecords.push(shops[id]);
+    newlyDelistedRecords.push({ id, ...shops[id] });
     if (s.reservable === true) {
       shops[id] = { ...shops[id], reservable: false, reservationSuspectedAt: s.reservationSuspectedAt || stamp, reservationLostAt: stamp };
       reservationLostNow.push({ id, ...shops[id] });
@@ -508,6 +551,16 @@ export async function main() {
   const delistedAll = delistedAllRaw.filter(s => !excludedIds.has(s.id));
   const newlyListedAll = newlyListedAllRaw.filter(s => !excludedIds.has(s.id));
   const excludedCount = reservationLostAllRaw.length - reservationLostAll.length;
+
+  // Slack通知: 今回の実行で新たに検出した分のみを対象にする（手動除外店は通知しない）。
+  // 累計リスト（reservationLostAll等）ではなく、この回のnewly*変数を使うことで
+  // 過去分を毎回再通知してしまわないようにする。
+  const slackText = buildSlackMessage(ACTIVE_PREF, {
+    lost: reservationLostNow.filter(s => !excludedIds.has(s.id)),
+    delisted: newlyDelistedRecords.filter(s => !excludedIds.has(s.id)),
+    newlyListed: newlyListedNow.filter(s => !excludedIds.has(s.id)),
+  });
+  await notifySlack(slackText);
 
   await mkdir(path.dirname(ROSTER_PATH), { recursive: true });
   await writeFile(ROSTER_PATH, JSON.stringify({

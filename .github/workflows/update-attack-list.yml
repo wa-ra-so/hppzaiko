@@ -56,25 +56,32 @@ jobs:
 
       # 4県分を順に更新。1県が失敗しても他県は続行する
       # （HOTPEPPER_API_KEY未設定時はスキップされ、既存data/はそのまま残る）
+      # SLACK_WEBHOOK_*（例: SLACK_WEBHOOK_CHIBA）はエリア担当者ごとの通知先チャンネルの
+      # Incoming Webhook URL。県ごとのSecretが未設定ならその県の通知はスキップされるだけで
+      # 実行自体は失敗しない（scripts/hotpepper-roster.mjsのnotifySlack参照）
       - name: Update HotPepper roster (chiba)
         run: node scripts/hotpepper-roster.mjs --pref=chiba || echo "::warning::HotPepper roster update failed (chiba)"
         env:
           HOTPEPPER_API_KEY: ${{ secrets.HOTPEPPER_API_KEY }}
+          SLACK_WEBHOOK_CHIBA: ${{ secrets.SLACK_WEBHOOK_CHIBA }}
 
       - name: Update HotPepper roster (tokyo)
         run: node scripts/hotpepper-roster.mjs --pref=tokyo || echo "::warning::HotPepper roster update failed (tokyo)"
         env:
           HOTPEPPER_API_KEY: ${{ secrets.HOTPEPPER_API_KEY }}
+          SLACK_WEBHOOK_TOKYO: ${{ secrets.SLACK_WEBHOOK_TOKYO }}
 
       - name: Update HotPepper roster (kanagawa)
         run: node scripts/hotpepper-roster.mjs --pref=kanagawa || echo "::warning::HotPepper roster update failed (kanagawa)"
         env:
           HOTPEPPER_API_KEY: ${{ secrets.HOTPEPPER_API_KEY }}
+          SLACK_WEBHOOK_KANAGAWA: ${{ secrets.SLACK_WEBHOOK_KANAGAWA }}
 
       - name: Update HotPepper roster (saitama)
         run: node scripts/hotpepper-roster.mjs --pref=saitama || echo "::warning::HotPepper roster update failed (saitama)"
         env:
           HOTPEPPER_API_KEY: ${{ secrets.HOTPEPPER_API_KEY }}
+          SLACK_WEBHOOK_SAITAMA: ${{ secrets.SLACK_WEBHOOK_SAITAMA }}
 
       # 更新後のデータ監査。壊れていればコミットしない（安全側に倒れる）
       - name: Test data (after)

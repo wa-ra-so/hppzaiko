@@ -60,6 +60,33 @@
 
 キー未設定の間は台帳更新がスキップされ、既存のデータがそのまま表示されます。
 
+## Slack通知（エリア担当者への新規検出アラート）
+
+「予約不可（確定）」「解約（掲載終了）」「新規掲載（ネット予約可）」を新たに検出した回だけ、
+県ごとに設定したSlackチャンネルへ通知できます（任意機能。未設定でも台帳更新自体は動きます）。
+
+1. 通知したいSlackチャンネルで **Incoming Webhook** を発行する
+   （Slack管理画面 → App管理 → 「Incoming Webhooks」アプリを追加 → 対象チャンネルを選択 →
+   発行されたWebhook URL（`https://hooks.slack.com/services/...`）をコピー）。
+   エリア担当者ごとに担当チャンネルを分けたい場合は、県の数だけ発行する
+2. このリポジトリの **Settings → Secrets and variables → Actions → New repository secret** で、
+   担当する県ごとに以下のいずれかを設定する
+   - `SLACK_WEBHOOK_CHIBA`（千葉県担当のWebhook URL）
+   - `SLACK_WEBHOOK_TOKYO`（東京都担当）
+   - `SLACK_WEBHOOK_KANAGAWA`（神奈川県担当）
+   - `SLACK_WEBHOOK_SAITAMA`（埼玉県担当）
+   - 県ごとに分けず全県共通の1チャンネルでよい場合は `SLACK_WEBHOOK_URL` だけ設定してもよい
+     （県別Secretが無い県はこちらにフォールバックする）
+3. 次回の自動実行（1時間おき）以降、新規検出があった県だけ通知が届きます
+
+通知本文には店名・エリア・HotPepperの店舗ページリンクと、該当県のアタックリストへの
+リンクを含みます。1メッセージあたり各カテゴリ最大10件まで列挙し、それを超える分は
+「…他N件」とまとめます（Slackメッセージの肥大防止）。手動除外店
+（`data/manual-overrides.json`）は通知対象からも除外されます。
+
+Slack投稿が失敗（Webhook URLの設定ミス・Slack側の障害等）しても台帳更新自体は
+失敗しません（Actionsログに`::warning::`が出るのみ）。
+
 ## メンテナンス
 
 - **県を追加する**ときは `scripts/prefectures.mjs` に県設定を足し、`index.html` の

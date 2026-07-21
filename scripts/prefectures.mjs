@@ -5,30 +5,37 @@
 
 export const DEFAULT_PREF_ID = 'chiba';
 
+// slackWebhookEnv: この県の新規検出をSlack通知する際に読む環境変数名（Incoming Webhook URL）。
+// エリア担当者ごとに通知先チャンネルを分けられるよう県ごとに別の変数名にしている。
+// 対応するGitHub Secretsが未設定の場合は通知をスキップする（hotpepper-roster.mjs参照）。
 export const PREFECTURES = {
   chiba: {
     id: 'chiba',
     name: '千葉県',
     short: '千葉',
     dataFile: 'stores.json', // 従来URL互換のためファイル名は据え置き（hotpepper-roster.jsonに変換される）
+    slackWebhookEnv: 'SLACK_WEBHOOK_CHIBA',
   },
   tokyo: {
     id: 'tokyo',
     name: '東京都',
     short: '東京',
     dataFile: 'stores-tokyo.json',
+    slackWebhookEnv: 'SLACK_WEBHOOK_TOKYO',
   },
   kanagawa: {
     id: 'kanagawa',
     name: '神奈川県',
     short: '神奈川',
     dataFile: 'stores-kanagawa.json',
+    slackWebhookEnv: 'SLACK_WEBHOOK_KANAGAWA',
   },
   saitama: {
     id: 'saitama',
     name: '埼玉県',
     short: '埼玉',
     dataFile: 'stores-saitama.json',
+    slackWebhookEnv: 'SLACK_WEBHOOK_SAITAMA',
   },
 };
 

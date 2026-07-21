@@ -239,6 +239,27 @@ DATA.newlyListedを直接見るため）。
 （`list-reservation-lost.mjs`/`list-delisted.mjs`/`list-newly-listed.mjs`）も
 同様に出力する。
 
+## Slack通知（エリア担当者への新規検出アラート・2026-07-21追加）
+
+アタックリストはこれまでpull型（サイトを開きに行かないと新規リードに気づけない）
+だったため、鮮度の高いうちに架電できるよう、新規検出（予約不可確定・解約・新規掲載）
+があった回だけSlackへ通知する機能を追加した。
+
+エリア担当者ごとに通知先を分けられるよう、県ごとに別のSlack Incoming Webhook URLを
+環境変数（`SLACK_WEBHOOK_CHIBA`/`SLACK_WEBHOOK_TOKYO`/`SLACK_WEBHOOK_KANAGAWA`/
+`SLACK_WEBHOOK_SAITAMA`）として`scripts/prefectures.mjs`の`slackWebhookEnv`に紐付け、
+`hotpepper-roster.mjs`側でその県専用の変数→無ければ全県共通の`SLACK_WEBHOOK_URL`の順で
+フォールバックする（`notifySlack`）。県別Secretが未設定でも通知をスキップするだけで
+実行自体は失敗しない設計にした（Slack連携は補助機能であり、設定漏れで本体の台帳更新を
+落とすのは本末転倒なため）。
+
+通知対象は「今回の実行で新たに検出した分」のみ（`reservationLostNow`/
+`newlyDelistedRecords`/`newlyListedNow`）で、累計リストではない。累計を使うと過去分を
+毎回再通知してしまうため。手動除外店（`data/manual-overrides.json`）はアタックリスト
+本体と同様に通知からも除外する。本文組み立て（`buildSlackMessage`）と送信
+（`notifySlack`）を分離しているのはテスト容易化のためで、送信失敗時（Webhook URLの
+設定ミス・Slack側障害等）も`::warning::`を出すのみで台帳更新は継続する。
+
 ## 検出精度のための仕組み（誤検出対策）
 
 アタックリストは営業が実際に架電する情報源になるため、誤検出（本当は予約できるのに

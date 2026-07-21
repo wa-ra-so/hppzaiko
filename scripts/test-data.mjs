@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { PREFECTURES } from './prefectures.mjs';
-import { applyReservableCheck, checkReservable, extractPhone, hasMinDelistedTenure, isBootstrapRun, shouldClearSyntheticLostFlags } from './hotpepper-roster.mjs';
+import { applyReservableCheck, checkReservable, extractPhone, hasMinDelistedTenure, isBootstrapRun, shouldClearSyntheticLostFlags, buildSlackMessage } from './hotpepper-roster.mjs';
 import { normalizeAddress, groupByAddress } from './address-dedup.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -261,6 +261,40 @@ function testAddressDedup() {
   ok('normalizeAddress/groupByAddress: 単体テスト 5/5 パス');
 }
 
+// ── ①''''''buildSlackMessage単体テスト（エリア担当者向けSlack通知の本文組み立て） ──
+function testBuildSlackMessage() {
+  const pref = { id: 'chiba', name: '千葉県' };
+
+  // 何も検出が無ければ通知しない（null）
+  assert.equal(
+    buildSlackMessage(pref, { lost: [], delisted: [], newlyListed: [] }),
+    null, '検出0件: nullを返し通知しない');
+
+  // 検出があれば県名・件数・店名・リンクを含む本文を組み立てる
+  {
+    const text = buildSlackMessage(pref, {
+      lost: [{ name: 'A店', area: '松戸', url: 'https://www.hotpepper.jp/strA/' }],
+      delisted: [],
+      newlyListed: [],
+    });
+    assert.ok(text.includes('千葉県'), '県名を含む');
+    assert.ok(text.includes('予約不可'), 'ラベル（予約不可）を含む');
+    assert.ok(text.includes('1件'), '件数を含む');
+    assert.ok(text.includes('A店'), '店名を含む');
+    assert.ok(text.includes('https://www.hotpepper.jp/strA/'), 'リンクを含む');
+    assert.ok(text.includes('https://wa-ra-so.github.io/hppzaiko/?pref=chiba'), 'サイトURL（該当県）を含む');
+  }
+
+  // 件数が上限を超えた分は「…他N件」に丸める（Slackメッセージの肥大防止）
+  {
+    const many = Array.from({ length: 15 }, (_, i) => ({ name: `店${i}`, area: '', url: `https://example.test/${i}` }));
+    const text = buildSlackMessage(pref, { lost: [], delisted: many, newlyListed: [] });
+    assert.ok(text.includes('他 5 件'), '上限超過分は「他N件」に丸める');
+  }
+
+  ok('buildSlackMessage: 単体テスト 3/3 パス');
+}
+
 // ── ②data/*.json の整合性チェック ──
 async function loadExcludedIds() {
   try {
@@ -381,6 +415,7 @@ async function main() {
   testIsBootstrapRun();
   testShouldClearSyntheticLostFlags();
   testAddressDedup();
+  testBuildSlackMessage();
 
   const excludedIds = await loadExcludedIds();
   for (const pref of Object.values(PREFECTURES)) {
