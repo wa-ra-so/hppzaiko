@@ -26,7 +26,7 @@
 | `scripts/list-reservation-lost.mjs` | 台帳からネット予約不可になった店をCLI出力・CSV書き出しするヘルパー |
 | `scripts/list-delisted.mjs` | 台帳から解約（掲載終了）した店をCLI出力・CSV書き出しするヘルパー |
 | `scripts/list-newly-listed.mjs` | 台帳から新規掲載（ネット予約可）した店をCLI出力・CSV書き出しするヘルパー |
-| `scripts/test-data.mjs` | 判定ロジック（`applyReservableCheck`/`checkReservable`/`extractPhone`/`hasMinDelistedTenure`/`isBootstrapRun`）の単体テスト＋`data/*.json` の整合性チェック。台帳更新の前後でActionsから実行し、ロジックの劣化や壊れたデータをコミットしない |
+| `scripts/test-data.mjs` | 判定ロジック（`applyReservableCheck`/`checkReservable`/`extractPhone`/`extractPhoneFromTelPage`/`hasMinDelistedTenure`/`isBootstrapRun`）の単体テスト＋`data/*.json` の整合性チェック。台帳更新の前後でActionsから実行し、ロジックの劣化や壊れたデータをコミットしない |
 | `data/hotpepper-roster*.json` | 県ごとのホットペッパー掲載台帳（店舗IDごとの firstSeenAt / lastSeenAt / reservable / reservableCheckedAt / lastReservableAt / reservationSuspectedAt / reservationLostAt / delistedAt / newlyListedAt / tel / catch / budget / open / close / access。Actionsが自動コミット） |
 | `data/hotpepper-reservation-lost*.json` | 台帳から抽出したネット予約不可店（確定分・手動除外を除く）のみの軽量版（`index.html` が読む） |
 | `data/hotpepper-delisted*.json` | 台帳から抽出した解約（掲載終了）店（手動除外を除く）のみの軽量版（`index.html` が読む） |
@@ -238,6 +238,28 @@ DATA.newlyListedを直接見るため）。
 （`tel:`リンク）を表示し、CSVにも「電話番号」列を追加した。CLIスクリプト
 （`list-reservation-lost.mjs`/`list-delisted.mjs`/`list-newly-listed.mjs`）も
 同様に出力する。
+
+### 予約不可の店で電話番号がほぼ取れない問題（2026-07-21発覚・修正）
+
+上記の方式をリリース後、実データを集計したところ**ネット予約可の店は63%取得できて
+いたのに対し、予約不可の店はわずか1%程度**しか取れていなかった（アタックリストの
+主対象はまさに予約不可・解約した店なので、一番電話番号を必要とする店で機能して
+いなかったことになる）。
+
+原因は店舗ページのHTML構造の違いだった。ネット予約可の店は店舗ページ本体に
+`tel:`リンクや`telephone`フィールドが直接埋め込まれているが、**予約不可の店の
+店舗ページ本体には「電話番号を表示する」というリンクがあるだけで、実際の番号は
+別ページ（`/str{id}/tel/`）内の`<p class="telephoneNumber">`にしか無い**（クリック
+計測目的で番号を隠していると見られる）。この環境からは実機のhotpepper.jpに
+アクセスできないため、GitHub Actions上で一時的な調査用ワークフローを実行して
+実際のHTMLを取得し特定した。
+
+対策として、店舗ページ本体から電話番号が拾えなかった場合のみ`/tel/`サブページへ
+追加で1回フェッチするフォールバックを`checkReservable`に追加した
+（`extractPhoneFromTelPage`/`fetchPhoneFromTelPage`）。本体で拾えた場合（ネット
+予約可の店の大半）は従来どおり追加リクエスト無し。拾えなかった場合のみの追加
+リクエストのため、800件/回のローテーション内で完結し、既存の頻度設計への影響は
+限定的。
 
 ## 検出精度のための仕組み（誤検出対策）
 

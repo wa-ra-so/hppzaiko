@@ -1,8 +1,29 @@
 {
- "updatedAt": "2026-07-21T04:04:14.245Z",
+ "updatedAt": "2026-07-21T05:06:54.064Z",
  "pref": "saitama",
  "activeCount": 5329,
  "items": [
+  {
+   "id": "J003532084",
+   "name": "海鮮問屋 孝進丸",
+   "address": "埼玉県越谷市南越谷１-26-14 KO’Z-1 1F",
+   "genre": "居酒屋",
+   "area": "南越谷",
+   "url": "https://www.hotpepper.jp/strJ003532084/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:59:02.414Z",
+   "lastSeenAt": "2026-07-21T05:06:54.064Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-21T05:06:54.064Z",
+   "lastReservableAt": "2026-07-20T18:39:14.452Z",
+   "catch": "席でおタバコ吸えます◎ 嬉しい駅チカアクセス♪",
+   "budget": "コースはご予算に応じてご提案させて頂きます。",
+   "open": "月～日: 16:00～翌0:00 （料理L.O. 23:00 ドリンクL.O. 23:00）",
+   "close": "詳細は店舗様へ直接お電話にてお問い合わせください。",
+   "access": "東武スカイツリーライン『新越谷駅』より徒歩2分/JR武蔵野線『南越谷駅』北口より徒歩1分",
+   "tel": "048-940-2934",
+   "reservationSuspectedAt": "2026-07-21T04:04:14.245Z",
+   "reservationLostAt": "2026-07-21T05:06:54.064Z"
+  },
   {
    "id": "J001201842",
    "name": "フレスカ オイスターバー&キッチン 川口店",
@@ -11,9 +32,9 @@
    "area": "川口駅",
    "url": "https://www.hotpepper.jp/strJ001201842/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-21T04:04:14.245Z",
+   "lastSeenAt": "2026-07-21T05:06:54.064Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T04:04:14.245Z",
+   "reservableCheckedAt": "2026-07-21T05:06:54.064Z",
    "lastReservableAt": "2026-07-20T12:27:18.777Z",
    "catch": "旬の生牡蠣の食べ比べ ランチタイム",
    "budget": "4500円",
@@ -32,9 +53,9 @@
    "area": "大宮駅",
    "url": "https://www.hotpepper.jp/strJ001020533/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-21T04:04:14.245Z",
+   "lastSeenAt": "2026-07-21T05:06:54.064Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T04:04:14.245Z",
+   "reservableCheckedAt": "2026-07-21T05:06:54.064Z",
    "lastReservableAt": "2026-07-15T15:15:49.910Z",
    "reservationSuspectedAt": "2026-07-17T14:46:42.537Z",
    "reservationLostAt": "2026-07-17T18:21:06.996Z",
@@ -42,7 +63,8 @@
    "budget": "食べ飲み放題3000円(税込)～ございます！",
    "open": "月～土: 17:00～翌0:00 （料理L.O. 23:00 ドリンクL.O. 23:00）日: 17:00～23:00 （料理L.O. 22:30 ドリンクL.O. 22:30）",
    "close": "祝日",
-   "access": "大宮駅から徒歩5分"
+   "access": "大宮駅から徒歩5分",
+   "tel": "048-829-7011"
   },
   {
    "id": "J003850848",
@@ -52,9 +74,9 @@
    "area": "熊谷",
    "url": "https://www.hotpepper.jp/strJ003850848/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-21T04:04:14.245Z",
+   "lastSeenAt": "2026-07-21T05:06:54.064Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T04:04:14.245Z",
+   "reservableCheckedAt": "2026-07-21T05:06:54.064Z",
    "lastReservableAt": "2026-07-15T15:15:49.910Z",
    "reservationSuspectedAt": "2026-07-17T14:46:42.537Z",
    "reservationLostAt": "2026-07-17T18:21:06.996Z",
@@ -62,7 +84,8 @@
    "budget": "【ディナー】2000円～3000円",
    "open": "月、水～日: 16:00～翌0:00 （料理L.O. 23:00 ドリンクL.O. 翌0:00）火: 18:00～翌0:00 （料理L.O. 23:00 ドリンクL.O. 翌0:00）",
    "close": "なし",
-   "access": "秩父鉄道、ＪＲ熊谷駅南口より徒歩約2分 "
+   "access": "秩父鉄道、ＪＲ熊谷駅南口より徒歩約2分 ",
+   "tel": "048-501-5840"
   },
   {
    "id": "J003410025",
@@ -72,9 +95,9 @@
    "area": "熊谷",
    "url": "https://www.hotpepper.jp/strJ003410025/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-21T04:04:14.245Z",
+   "lastSeenAt": "2026-07-21T05:06:54.064Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T04:04:14.245Z",
+   "reservableCheckedAt": "2026-07-21T05:06:54.064Z",
    "lastReservableAt": "2026-07-15T22:16:42.470Z",
    "reservationSuspectedAt": "2026-07-17T14:46:42.537Z",
    "reservationLostAt": "2026-07-17T18:21:06.996Z",
@@ -82,7 +105,8 @@
    "budget": "4,000円～5,000円",
    "open": "月～土: 18:00～22:30 （料理L.O. 22:00 ドリンクL.O. 22:00）",
    "close": "日、祝日",
-   "access": "熊谷駅南口から徒歩２分！"
+   "access": "熊谷駅南口から徒歩２分！",
+   "tel": "048-577-7725"
   },
   {
    "id": "J000689896",
@@ -92,9 +116,9 @@
    "area": "大宮駅",
    "url": "https://www.hotpepper.jp/strJ000689896/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-21T04:04:14.245Z",
+   "lastSeenAt": "2026-07-21T05:06:54.064Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T04:04:14.245Z",
+   "reservableCheckedAt": "2026-07-21T05:06:54.064Z",
    "lastReservableAt": "2026-07-15T14:35:53.546Z",
    "reservationSuspectedAt": "2026-07-17T10:57:19.451Z",
    "reservationLostAt": "2026-07-17T14:46:42.537Z",
@@ -102,7 +126,8 @@
    "budget": "ランチ：1001円～　ディナー：1501円～",
    "open": "月～日、祝日、祝前日: 11:00～翌5:00",
    "close": "なし",
-   "access": "大宮駅東口徒歩2分"
+   "access": "大宮駅東口徒歩2分",
+   "tel": "048-640-2424"
   },
   {
    "id": "J000178843",
@@ -112,9 +137,9 @@
    "area": "与野",
    "url": "https://www.hotpepper.jp/strJ000178843/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-21T04:04:14.245Z",
+   "lastSeenAt": "2026-07-21T05:06:54.064Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T04:04:14.245Z",
+   "reservableCheckedAt": "2026-07-21T05:06:54.064Z",
    "lastReservableAt": "2026-07-15T13:35:44.358Z",
    "reservationSuspectedAt": "2026-07-17T07:30:22.605Z",
    "reservationLostAt": "2026-07-17T08:36:18.432Z",
@@ -122,7 +147,8 @@
    "budget": "2,500円～3,000円",
    "open": "月～土、祝前日: 17:00～23:00 （料理L.O. 22:00 ドリンクL.O. 22:00）",
    "close": "日、祝日",
-   "access": "ＪＲ京浜東北・根岸線与野駅西口より徒歩約1分/ＪＲさいたま新都心駅西口より徒歩約23分"
+   "access": "ＪＲ京浜東北・根岸線与野駅西口より徒歩約1分/ＪＲさいたま新都心駅西口より徒歩約23分",
+   "tel": "048-832-9030"
   },
   {
    "id": "J004492214",
@@ -132,9 +158,9 @@
    "area": "川口駅",
    "url": "https://www.hotpepper.jp/strJ004492214/?vos=nhppalsa000016",
    "firstSeenAt": "2026-07-15T08:59:02.414Z",
-   "lastSeenAt": "2026-07-21T04:04:14.245Z",
+   "lastSeenAt": "2026-07-21T05:06:54.064Z",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T04:04:14.245Z",
+   "reservableCheckedAt": "2026-07-21T05:06:54.064Z",
    "lastReservableAt": "2026-07-15T10:03:42.947Z",
    "reservationLostAt": "2026-07-15T22:16:42.470Z",
    "reservationSuspectedAt": "2026-07-15T22:16:42.470Z",
@@ -142,7 +168,8 @@
    "budget": "ディナー1500円～",
    "open": "月: 11:30～15:00 （料理L.O. 14:30 ドリンクL.O. 14:30）水～日、祝日、祝前日: 11:30～15:00 （料理L.O. 14:30 ドリンクL.O. 14:30）15:01～21:00 （料理L.O. 20:00 ドリンクL.O. 20:00）",
    "close": "火",
-   "access": "JR京浜東北・根岸線 川口駅東口より徒歩約1０分"
+   "access": "JR京浜東北・根岸線 川口駅東口より徒歩約1０分",
+   "tel": "048-233-5121"
   }
  ]
 }

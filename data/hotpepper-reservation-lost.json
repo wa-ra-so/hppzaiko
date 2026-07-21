@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-07-21T03:40:53.784Z",
+ "updatedAt": "2026-07-21T04:43:07.884Z",
  "pref": "chiba",
  "activeCount": 5218,
  "items": [
@@ -10,10 +10,10 @@
    "genre": "居酒屋",
    "area": "松戸",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-21T03:40:53.784Z",
+   "lastSeenAt": "2026-07-21T04:43:07.884Z",
    "url": "https://www.hotpepper.jp/strJ000017782/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T03:40:53.784Z",
+   "reservableCheckedAt": "2026-07-21T04:43:07.884Z",
    "lastReservableAt": "2026-07-20T16:00:36.204Z",
    "catch": "春の期間限定メニュー！ ●豊富な飲み放題も完備！",
    "budget": "【通常】2500円／【宴会】3500円※飲み放題特別クーポンもご用意",
@@ -31,10 +31,10 @@
    "genre": "焼肉・ホルモン",
    "area": "市原市その他",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-21T03:40:53.784Z",
+   "lastSeenAt": "2026-07-21T04:43:07.884Z",
    "url": "https://www.hotpepper.jp/strJ000236679/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T03:40:53.784Z",
+   "reservableCheckedAt": "2026-07-21T04:43:07.884Z",
    "lastReservableAt": "2026-07-20T16:00:36.204Z",
    "catch": "選べる食べ放題3,058円～ ●豊富な飲み放題も完備！",
    "budget": "【通常】2500円／【宴会】3500円※飲み放題特別クーポンもご用意",
@@ -52,10 +52,10 @@
    "genre": "イタリアン・フレンチ",
    "area": "ディズニーランド",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-21T03:40:53.784Z",
+   "lastSeenAt": "2026-07-21T04:43:07.884Z",
    "url": "https://www.hotpepper.jp/strJ001258730/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T03:40:53.784Z",
+   "reservableCheckedAt": "2026-07-21T04:43:07.884Z",
    "lastReservableAt": "2026-07-19T11:11:18.977Z",
    "catch": "おしゃれホテルレストラン ホールケーキもご用意",
    "budget": "ランチ3,000～4,000円　ディナー4,000～5,000円",
@@ -63,7 +63,8 @@
    "close": "なし",
    "access": "ディズニーリゾートラインベイサイド・ステーション駅出口より徒歩約6分",
    "reservationSuspectedAt": "2026-07-19T20:55:04.589Z",
-   "reservationLostAt": "2026-07-19T21:57:15.907Z"
+   "reservationLostAt": "2026-07-19T21:57:15.907Z",
+   "tel": "047-711-2427"
   },
   {
    "id": "J000202446",
@@ -72,10 +73,10 @@
    "genre": "焼肉・ホルモン",
    "area": "成田市その他",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-21T03:40:53.784Z",
+   "lastSeenAt": "2026-07-21T04:43:07.884Z",
    "url": "https://www.hotpepper.jp/strJ000202446/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T03:40:53.784Z",
+   "reservableCheckedAt": "2026-07-21T04:43:07.884Z",
    "lastReservableAt": "2026-07-17T17:58:22.791Z",
    "catch": "焼肉・寿司の食べ放題 手作りメニューが大好評★",
    "budget": "3001～4000円",
@@ -83,7 +84,8 @@
    "close": "【すたみな太郎　成田店】は年中無休★お気軽にお問い合わせ願います★",
    "access": "東関東道富里ICから国道409号線を成田方面へ約850m。 京成線　公津の杜駅から車で約5分。",
    "reservationSuspectedAt": "2026-07-18T14:01:04.074Z",
-   "reservationLostAt": "2026-07-18T14:57:21.255Z"
+   "reservationLostAt": "2026-07-18T14:57:21.255Z",
+   "tel": "0476-24-1962"
   },
   {
    "id": "J000237807",
@@ -92,10 +94,10 @@
    "genre": "焼肉・ホルモン",
    "area": "柏",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-21T03:40:53.784Z",
+   "lastSeenAt": "2026-07-21T04:43:07.884Z",
    "url": "https://www.hotpepper.jp/strJ000237807/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-21T03:40:53.784Z",
+   "reservableCheckedAt": "2026-07-21T04:43:07.884Z",
    "lastReservableAt": "2026-07-17T17:58:22.791Z",
    "catch": "焼肉食べ放題 寿司食べ放題",
    "budget": "3001～4000円",
@@ -103,7 +105,8 @@
    "close": "【すたみな太郎　PREMIUM BUFFET 柏沼南店】は年中無休★お気軽にお問い合わせ願います★",
    "access": "常磐道柏ICから国道16号線を千葉方面へ12km。高柳駅から車で約3分",
    "reservationSuspectedAt": "2026-07-18T14:01:04.074Z",
-   "reservationLostAt": "2026-07-18T14:57:21.255Z"
+   "reservationLostAt": "2026-07-18T14:57:21.255Z",
+   "tel": "04-7193-0390"
   },
   {
    "id": "J001279736",
