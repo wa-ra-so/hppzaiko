@@ -106,14 +106,23 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
 .tag-tel{background:var(--green);color:#fff;border:1px solid var(--green);font-weight:700;text-decoration:none;font-size:11.5px;padding:4px 10px;}
 .tag-tel:hover{opacity:.85;}
 
-.snapshot-details{margin-top:6px;}
-.snapshot-details summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--blue);user-select:none;}
-.snapshot-details summary::-webkit-details-marker{display:none;}
-.snapshot-details summary:active{transform:scale(.97);}
-.snapshot-details summary .toggle-arrow{font-size:8px;color:var(--light);display:inline-block;transition:transform .2s var(--ease);}
-.snapshot-details[open] summary .toggle-arrow{transform:rotate(180deg);}
-.snapshot-box{margin-top:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--faint);border-radius:8px;font-size:11px;color:var(--mid);line-height:1.7;transform-origin:top left;animation:ddOpen .18s var(--ease);}
-.snapshot-box .snapshot-row strong{color:var(--ink);font-weight:600;margin-right:4px;}
+.snapshot-btn{margin-top:6px;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--blue);background:none;border:none;padding:0;cursor:pointer;font-family:inherit;user-select:none;}
+.snapshot-btn:active{transform:scale(.97);}
+.snapshot-btn .toggle-arrow{font-size:8px;color:var(--light);display:inline-block;}
+
+/* 解約前の店舗情報モーダル。行ごとにインラインで開くと一覧が縦に膨れ上がる
+   ため、共有の1個のモーダルにデータを詰め替えて表示する */
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:100;align-items:center;justify-content:center;padding:20px;animation:fadeBg .18s var(--ease);}
+.modal-backdrop.open{display:flex;}
+@keyframes fadeBg{from{opacity:0;}to{opacity:1;}}
+.modal-box{position:relative;background:var(--white);border-radius:14px;box-shadow:0 20px 50px rgba(15,23,42,.25);padding:22px 20px 18px;width:100%;max-width:380px;max-height:80vh;overflow-y:auto;transform-origin:center;animation:ddOpen .22s var(--ease);}
+.modal-close{position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:50%;border:none;background:var(--bg);color:var(--mid);font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s var(--ease);}
+.modal-close:hover{background:var(--faint);}
+.snapshot-title{font-size:14.5px;font-weight:700;color:var(--ink);margin-bottom:2px;padding-right:26px;}
+.snapshot-note{font-size:10.5px;color:var(--light);margin-bottom:14px;line-height:1.6;}
+.snapshot-section{padding:10px 12px;background:var(--bg);border:1px solid var(--faint);border-radius:10px;margin-bottom:8px;}
+.snapshot-section strong{display:block;font-size:10px;font-weight:700;color:var(--mid);margin-bottom:3px;}
+.snapshot-section span{font-size:12px;color:var(--ink);line-height:1.7;white-space:pre-line;}
 
 .empty-state{background:var(--white);border:1px dashed var(--faint);border-radius:var(--radius);padding:40px 20px;text-align:center;color:var(--mid);font-size:13px;line-height:1.8;}
 .loading{padding:40px 20px;text-align:center;color:var(--light);font-size:13px;}
@@ -136,6 +145,13 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
   <div class="view-tabs" id="viewTabs"></div>
 
   <div id="content"><div class="loading">読み込み中…</div></div>
+</div>
+
+<div class="modal-backdrop" id="snapshotBackdrop">
+  <div class="modal-box" id="snapshotBox" role="dialog" aria-modal="true">
+    <button class="modal-close" id="snapshotClose" aria-label="閉じる">×</button>
+    <div id="snapshotContent"></div>
+  </div>
 </div>
 
 <script>
@@ -438,6 +454,10 @@ function render() {
   q.onkeydown = (e) => { if (e.key === 'Enter') { state.q = q.value; render(); } };
   el.querySelector('#clearBtn').onclick = () => { Object.assign(state, { days: 90, area: '', genre: '', q: '' }); render(); };
   el.querySelector('#csvBtn').onclick = () => downloadCsv(groups);
+  el.querySelectorAll('[data-snapshot-id]').forEach(b => b.onclick = () => {
+    const it = data.items.find(x => x.id === b.dataset.snapshotId);
+    if (it) openSnapshot(it);
+  });
   // 検索欄はフォーカスを保つ（再描画後）
   if (state.q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
 }
@@ -497,21 +517,40 @@ function rowLost(group, i) {
 }
 
 // 解約前に最後に確認できた店舗情報（catch/budget/open/close/access）。ページ自体は
-// もう見られないため架電・商談時の参考情報になるが、リストの一覧性を保つため常時表示
-// はせず、タップ（<details>）で開くまでは畳んでおく
-function delistedSnapshot(it) {
-  const rows = [
-    it.catch && `<div class="snapshot-row"><strong>キャッチ:</strong> ${esc(it.catch)}</div>`,
-    it.budget && `<div class="snapshot-row"><strong>予算:</strong> ${esc(it.budget)}</div>`,
-    (it.open || it.close) && `<div class="snapshot-row"><strong>営業時間:</strong> ${esc(it.open || '不明')}${it.close ? ` / 定休日: ${esc(it.close)}` : ''}</div>`,
-    it.access && `<div class="snapshot-row"><strong>アクセス:</strong> ${esc(it.access)}</div>`,
+// もう見られないため架電・商談時の参考情報になる。予算欄に複数コースがまとめて
+// 入っているなど1件あたりの分量が多く、行ごとにインライン展開すると一覧が縦に
+// 膨れ上がるため、共有の1個のモーダル（#snapshotBackdrop）にまとめて表示する
+function snapshotSections(it) {
+  return [
+    it.catch && { label: 'キャッチ', value: it.catch },
+    it.budget && { label: '予算・コース', value: it.budget },
+    (it.open || it.close) && { label: '営業時間', value: `${it.open || '不明'}${it.close ? `\n定休日: ${it.close}` : ''}` },
+    it.access && { label: 'アクセス', value: it.access },
   ].filter(Boolean);
-  if (rows.length === 0) return '';
-  return `<details class="snapshot-details">
-    <summary>解約前の店舗情報を見る<span class="toggle-arrow">▼</span></summary>
-    <div class="snapshot-box">${rows.join('')}</div>
-  </details>`;
 }
+
+function delistedSnapshot(it) {
+  if (snapshotSections(it).length === 0) return '';
+  return `<button type="button" class="snapshot-btn" data-snapshot-id="${esc(it.id)}">解約前の店舗情報を見る<span class="toggle-arrow">▼</span></button>`;
+}
+
+function openSnapshot(it) {
+  const sections = snapshotSections(it);
+  document.getElementById('snapshotContent').innerHTML = `
+    <div class="snapshot-title">${esc(it.name)}</div>
+    <div class="snapshot-note">解約前に最後に確認できた店舗情報です（ページ自体はもう見られません）</div>
+    ${sections.map(s => `<div class="snapshot-section"><strong>${esc(s.label)}</strong><span>${esc(s.value)}</span></div>`).join('')}
+  `;
+  document.getElementById('snapshotBackdrop').classList.add('open');
+}
+
+function closeSnapshot() {
+  document.getElementById('snapshotBackdrop').classList.remove('open');
+}
+
+document.getElementById('snapshotClose').onclick = closeSnapshot;
+document.getElementById('snapshotBackdrop').onclick = (e) => { if (e.target.id === 'snapshotBackdrop') closeSnapshot(); };
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSnapshot(); });
 
 function rowDelisted(group, i) {
   const it = group.primary;
