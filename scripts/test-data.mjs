@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { PREFECTURES } from './prefectures.mjs';
-import { applyReservableCheck, checkReservable, extractPhone, hasMinDelistedTenure, isBootstrapRun, shouldClearSyntheticLostFlags } from './hotpepper-roster.mjs';
+import { applyReservableCheck, checkReservable, extractPhone, extractPhoneFromTelPage, hasMinDelistedTenure, isBootstrapRun, shouldClearSyntheticLostFlags } from './hotpepper-roster.mjs';
 import { normalizeAddress, groupByAddress } from './address-dedup.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -132,7 +132,21 @@ async function testCheckReservable() {
     globalThis.fetch = async () => ({ ok: false });
     assert.equal((await checkReservable('https://example.test/')).tel, null, 'HTTPエラー時: telもnull');
 
-    ok('checkReservable: title/body二重チェック・電話番号抽出の単体テスト 8/8 パス');
+    // 店舗ページ本体にtelが無い場合（予約不可の店に多い）、/tel/サブページへ
+    // フォールバックして拾う。予約可否判定は本体ページのtitleで独立して行われる
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/tel/')) {
+        return { ok: true, text: async () => '<p class="telephoneNumber">04-7193-0390</p>' };
+      }
+      return { ok: true, text: async () => html('○○店', '現在ネット予約を受け付けていません') };
+    };
+    {
+      const result = await checkReservable('https://example.test/strXXX/?vos=xxx');
+      assert.equal(result.tel, '04-7193-0390', '本体ページに無くても/tel/サブページから電話番号を拾う');
+      assert.equal(result.reservable, false, '/tel/フォールバック中も予約可否判定は本体ページで独立して行われる');
+    }
+
+    ok('checkReservable: title/body二重チェック・電話番号抽出の単体テスト 10/10 パス');
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -161,6 +175,21 @@ function testExtractPhone() {
     'どちらのパターンも無ければnull',
   );
   ok('extractPhone: 電話番号抽出の単体テスト 4/4 パス');
+}
+
+// ── ①'''extractPhoneFromTelPage単体テスト（/tel/サブページからの電話番号抽出） ──
+function testExtractPhoneFromTelPage() {
+  assert.equal(
+    extractPhoneFromTelPage('<div class="storeTelephoneWrap"><p class="telephoneNumber">04-7193-0390</p></div>'),
+    '04-7193-0390',
+    'p.telephoneNumberから抽出',
+  );
+  assert.equal(
+    extractPhoneFromTelPage('<p>電話番号は非公開です</p>'),
+    null,
+    '該当パターンが無ければnull',
+  );
+  ok('extractPhoneFromTelPage: /tel/サブページ電話番号抽出の単体テスト 2/2 パス');
 }
 
 // ── ①''hasMinDelistedTenure単体テスト（新規掲載直後の店を解約と誤判定しないためのゲート） ──
@@ -377,6 +406,7 @@ async function main() {
   testApplyReservableCheck();
   await testCheckReservable();
   testExtractPhone();
+  testExtractPhoneFromTelPage();
   testHasMinDelistedTenure();
   testIsBootstrapRun();
   testShouldClearSyntheticLostFlags();

@@ -168,16 +168,46 @@ async function fetchAllShops(largeAreas) {
 }
 
 // 店舗ページのtel:リンク（電話する ボタン）から電話番号を抽出する。見つからなければ
-// JSON-LD構造化データの"telephone"を試す。どちらも無ければnull（既存のtelは消さず、
-// 次のローテーションで再チャレンジする＝reservableと同じ「わからなければ触らない」方針）。
+// JSON-LD構造化データの"telephone"を試す。どちらも無ければnull。
 // グルメサーチAPIには電話番号フィールドが無いため、ネット予約チェックで既に取得している
 // 店舗ページ本体のHTMLから追加コスト無し（別リクエスト無し）で抽出する。
+//
+// 注意: この方式が拾えるのはネット予約可の店がほとんど（実測63%）で、予約不可の店は
+// 1%程度しか拾えないことが判明している（2026-07-21）。予約不可の店の店舗ページ本体には
+// 「電話番号を表示する」というリンクがあるだけで、実際の番号は/tel/という別ページに
+// しか無いため（storeTelephoneWrap内のp.telephoneNumber）。この関数は店舗ページ本体
+// からの抽出のみを担当し、/tel/ページへのフォールバックはcheckReservable側で行う。
 export function extractPhone(html) {
   const hrefMatch = html.match(/href=["']tel:([0-9+\-]{8,15})["']/i);
   if (hrefMatch) return hrefMatch[1];
   const jsonLdMatch = html.match(/"telephone"\s*:\s*"([0-9+\-() ]{8,20})"/i);
   if (jsonLdMatch) return jsonLdMatch[1].trim();
   return null;
+}
+
+// /tel/サブページ（例: https://www.hotpepper.jp/strJ000237807/tel/）から電話番号を
+// 抽出する。予約不可の店はこちらにしか番号が無い。
+export function extractPhoneFromTelPage(html) {
+  const m = html.match(/<p class=["']telephoneNumber["']>([^<]+)<\/p>/i);
+  return m ? m[1].trim() : null;
+}
+
+// 店舗ページ本体のURLから/tel/サブページのURLを組み立てて取得し、電話番号を抽出する。
+// 失敗時（タイムアウト・HTTPエラー・見つからない等）はnullを返すだけで例外は投げない
+// （既存のtelを消さず、次のローテーションで再チャレンジする「わからなければ触らない」方針）。
+async function fetchPhoneFromTelPage(shopUrl) {
+  try {
+    const base = shopUrl.split('?')[0].replace(/\/$/, '');
+    const res = await fetch(`${base}/tel/`, {
+      headers: { 'User-Agent': RESERVE_UA },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(RESERVE_PAGE_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    return extractPhoneFromTelPage(await res.text());
+  } catch {
+    return null;
+  }
 }
 
 // 店舗ページの <title> にある「＜ネット予約可＞」表記の有無でネット予約可否を判定する。
@@ -199,7 +229,10 @@ export async function checkReservable(url) {
     });
     if (!res.ok) return { reservable: null, tel: null };
     const html = await res.text();
-    const tel = extractPhone(html);
+    let tel = extractPhone(html);
+    // 店舗ページ本体に電話番号が埋め込まれていない場合（予約不可の店に多い）、
+    // /tel/サブページへフォールバックする
+    if (!tel) tel = await fetchPhoneFromTelPage(url);
     const m = html.match(/<title>([^<]*)<\/title>/i);
     if (!m) return { reservable: null, tel };
     if (m[1].includes('ネット予約可')) return { reservable: true, tel };
