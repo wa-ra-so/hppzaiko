@@ -51,7 +51,7 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
 .pref-tabs .tab-pill{border-radius:6px;}
 .view-tabs .tab-pill{border-radius:8px;}
 
-.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;animation:materialize .55s var(--ease) both;}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;animation:materialize .75s var(--ease) both;}
 @media(max-width:640px){.kpi-row{grid-template-columns:1fr 1fr;}}
 .kpi{background:var(--white);border:1px solid var(--faint);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);}
 .kpi-label{font-size:10.5px;font-weight:600;color:var(--mid);}
@@ -85,8 +85,8 @@ body{font-family:'DM Sans','Noto Sans JP',sans-serif;background:var(--bg);color:
 .csv-btn:active,.clear-btn:active{transform:scale(.95);}
 
 .result-count{font-size:11px;color:var(--mid);margin-bottom:8px;padding-left:2px;}
-.list-card{background:var(--white);border:1px solid var(--faint);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;animation:materialize .55s var(--ease) both;animation-delay:.05s;}
-.store-row{display:flex;gap:14px;padding:13px 16px;border-bottom:1px solid var(--hairline);transition:background .15s var(--ease);}
+.list-card{background:var(--white);border:1px solid var(--faint);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+.store-row{display:flex;gap:14px;padding:13px 16px;border-bottom:1px solid var(--hairline);transition:background .15s var(--ease);animation:materialize .8s var(--ease) both;}
 .store-row:last-child{border-bottom:none;}
 .store-row:hover{background:#f8fafc;}
 .row-date{flex-shrink:0;width:58px;text-align:center;padding-top:2px;}
@@ -427,7 +427,7 @@ function render() {
   <div class="result-count">${groups.length} 軒を表示${dupCount > 0 ? `（同一住所の重複掲載 ${dupCount} 件を集約済み）` : ''}</div>
   ${groups.length === 0
     ? `<div class="empty-state">条件に合う${esc(view.emptyLabel)}はありません。<br>台帳の記録は 2026-07-14 開始で、全店舗を数日かけて順にチェックするため、検出には少し時間がかかります。</div>`
-    : `<div class="list-card">${groups.map(ROW_RENDERERS[state.view]).join('')}</div>`}
+    : `<div class="list-card">${groups.map((g, i) => ROW_RENDERERS[state.view](g, i)).join('')}</div>`}
   `;
 
   el.querySelectorAll('[data-days]').forEach(b => b.onclick = () => { state.days = +b.dataset.days; render(); });
@@ -440,6 +440,12 @@ function render() {
   el.querySelector('#csvBtn').onclick = () => downloadCsv(groups);
   // 検索欄はフォーカスを保つ（再描画後）
   if (state.q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+}
+
+// 上から順にフェードインさせるための行ごとの遅延。件数が多いリストで
+// いつまでも待たされないよう、途中から遅延を頭打ちにする
+function rowDelay(i) {
+  return `animation-delay:${(Math.min(i, 10) * 0.08).toFixed(2)}s`;
 }
 
 // 住所グループに束ねた店（重複掲載）が2件以上あるときの注記行
@@ -458,7 +464,7 @@ function telRow(it) {
   return `<div class="tag-row"><a class="tag tag-tel" href="tel:${esc(it.tel)}">電話する ${esc(it.tel)}</a></div>`;
 }
 
-function rowLost(group) {
+function rowLost(group, i) {
   const it = group.primary;
   const d = fmtDate(it.reservationLostAt);
   const suspected = fmtDate(it.reservationSuspectedAt) || d;
@@ -468,7 +474,7 @@ function rowLost(group) {
   const confirmLabel = suspected === d
     ? (stillListed ? `${d} に確定（1回の確認で確定した記録）` : `${d} に確定（HP掲載終了に伴う即時判定）`)
     : `1回目検出: ${suspected} → 2回連続確認で確定: ${d}`;
-  return `<div class="store-row">
+  return `<div class="store-row" style="${rowDelay(i)}">
     <div class="row-date">
       <div class="d-day">${d.slice(8, 10)}日</div>
       <div class="d-mo">${d.slice(0, 7).replace('-', '/')}</div>
@@ -507,12 +513,12 @@ function delistedSnapshot(it) {
   </details>`;
 }
 
-function rowDelisted(group) {
+function rowDelisted(group, i) {
   const it = group.primary;
   const d = fmtDate(it.delistedAt);
   const lastSeen = fmtDate(it.lastSeenAt);
   const statusTag = it.reservationLostAt ? '解約前からネット予約も不可だった' : '予約状況は不明のまま解約';
-  return `<div class="store-row">
+  return `<div class="store-row" style="${rowDelay(i)}">
     <div class="row-date">
       <div class="d-day">${d.slice(8, 10)}日</div>
       <div class="d-mo">${d.slice(0, 7).replace('-', '/')}</div>
@@ -534,10 +540,10 @@ function rowDelisted(group) {
   </div>`;
 }
 
-function rowNewlyListed(group) {
+function rowNewlyListed(group, i) {
   const it = group.primary;
   const d = fmtDate(it.newlyListedAt);
-  return `<div class="store-row">
+  return `<div class="store-row" style="${rowDelay(i)}">
     <div class="row-date">
       <div class="d-day">${d.slice(8, 10)}日</div>
       <div class="d-mo">${d.slice(0, 7).replace('-', '/')}</div>
