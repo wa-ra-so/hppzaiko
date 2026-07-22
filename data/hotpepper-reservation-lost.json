@@ -1,7 +1,7 @@
 {
- "updatedAt": "2026-07-22T03:41:24.562Z",
+ "updatedAt": "2026-07-22T06:40:54.582Z",
  "pref": "chiba",
- "activeCount": 5218,
+ "activeCount": 5215,
  "items": [
   {
    "id": "J003340780",
@@ -10,10 +10,10 @@
    "genre": "アジア・エスニック料理",
    "area": "八街",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-22T03:41:24.562Z",
+   "lastSeenAt": "2026-07-22T06:40:54.582Z",
    "url": "https://www.hotpepper.jp/strJ003340780/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-22T03:41:24.562Z",
+   "reservableCheckedAt": "2026-07-22T06:40:54.582Z",
    "lastReservableAt": "2026-07-21T06:05:44.149Z",
    "catch": "",
    "budget": "2001～3000円",
@@ -43,7 +43,8 @@
    "access": "ＪＲ内房線佐貫町駅出口より徒歩約3分",
    "tel": "0439-66-2220",
    "reservationSuspectedAt": "2026-07-21T18:38:52.841Z",
-   "reservationLostAt": "2026-07-21T20:33:43.797Z"
+   "reservationLostAt": "2026-07-21T20:33:43.797Z",
+   "delistedAt": "2026-07-22T06:40:54.582Z"
   },
   {
    "id": "J001284686",
@@ -64,7 +65,8 @@
    "access": "JR大網駅より小湊鉄道バス白子車庫行にて「福田」バス停下車徒歩10分。車で大綱白里スマートIC」より約12分",
    "reservationSuspectedAt": "2026-07-21T15:58:31.064Z",
    "tel": "080-2717-9176",
-   "reservationLostAt": "2026-07-21T16:40:17.027Z"
+   "reservationLostAt": "2026-07-21T16:40:17.027Z",
+   "delistedAt": "2026-07-22T06:40:54.582Z"
   },
   {
    "id": "J001258730",
@@ -73,10 +75,10 @@
    "genre": "イタリアン・フレンチ",
    "area": "ディズニーランド",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-22T03:41:24.562Z",
+   "lastSeenAt": "2026-07-22T06:40:54.582Z",
    "url": "https://www.hotpepper.jp/strJ001258730/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-22T03:41:24.562Z",
+   "reservableCheckedAt": "2026-07-22T06:40:54.582Z",
    "lastReservableAt": "2026-07-19T11:11:18.977Z",
    "catch": "おしゃれホテルレストラン ホールケーキもご用意",
    "budget": "ランチ3,000～4,000円　ディナー4,000～5,000円",
@@ -94,10 +96,10 @@
    "genre": "焼肉・ホルモン",
    "area": "成田市その他",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-22T03:41:24.562Z",
+   "lastSeenAt": "2026-07-22T06:40:54.582Z",
    "url": "https://www.hotpepper.jp/strJ000202446/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-22T03:41:24.562Z",
+   "reservableCheckedAt": "2026-07-22T06:40:54.582Z",
    "lastReservableAt": "2026-07-17T17:58:22.791Z",
    "catch": "焼肉・寿司の食べ放題 手作りメニューが大好評★",
    "budget": "3001～4000円",
@@ -115,10 +117,10 @@
    "genre": "焼肉・ホルモン",
    "area": "柏",
    "firstSeenAt": "2026-07-14T21:49:45.409Z",
-   "lastSeenAt": "2026-07-22T03:41:24.562Z",
+   "lastSeenAt": "2026-07-22T06:40:54.582Z",
    "url": "https://www.hotpepper.jp/strJ000237807/?vos=nhppalsa000016",
    "reservable": false,
-   "reservableCheckedAt": "2026-07-22T03:41:24.562Z",
+   "reservableCheckedAt": "2026-07-22T06:40:54.582Z",
    "lastReservableAt": "2026-07-17T17:58:22.791Z",
    "catch": "焼肉食べ放題 寿司食べ放題",
    "budget": "3001～4000円",

@@ -1,8 +1,30 @@
 {
- "updatedAt": "2026-07-22T04:01:12.739Z",
+ "updatedAt": "2026-07-22T07:00:42.391Z",
  "pref": "kanagawa",
- "activeCount": 9738,
+ "activeCount": 9737,
  "items": [
+  {
+   "id": "J004005296",
+   "name": "Cafe & Bar 4 SEASONS フォーシーズンズ",
+   "address": "神奈川県川崎市麻生区王禅寺東４-３７-７",
+   "genre": "ダイニングバー・バル",
+   "area": "柿生",
+   "url": "https://www.hotpepper.jp/strJ004005296/?vos=nhppalsa000016",
+   "firstSeenAt": "2026-07-15T08:56:07.680Z",
+   "lastSeenAt": "2026-07-22T04:01:12.739Z",
+   "reservable": false,
+   "reservableCheckedAt": "2026-07-21T05:03:51.288Z",
+   "lastReservableAt": "2026-07-21T05:03:51.288Z",
+   "catch": "バーカウンター",
+   "budget": "3001～4000円",
+   "open": "月、水～土: 18:00～翌0:00 （料理L.O. 23:15 ドリンクL.O. 23:15）日: 11:30～14:00 （料理L.O. 13:00 ドリンクL.O. 13:15）",
+   "close": "火",
+   "access": "あざみ野駅、新百合ヶ丘駅それぞれバス：新23系統真福寺下車 徒歩30秒　柿生駅から1,085m",
+   "tel": "070-8978-0673",
+   "delistedAt": "2026-07-22T07:00:42.391Z",
+   "reservationSuspectedAt": "2026-07-22T07:00:42.391Z",
+   "reservationLostAt": "2026-07-22T07:00:42.391Z"
+  },
   {
    "id": "J001149838",
    "name": "丸福珈琲店 川崎アゼリア店",
