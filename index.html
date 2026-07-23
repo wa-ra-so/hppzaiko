@@ -306,18 +306,27 @@ function withinDays(iso, days) {
   return Number.isFinite(t) && t >= Date.now() - days * dayMs;
 }
 
+// 今月（JST基準の年月が現在と一致するか）かどうかを判定する。純増減はローリング30日
+// ではなく暦月（今月1日〜現在）で区切ってほしいという要望に対応
+function isThisMonth(iso) {
+  const p = jstParts(iso);
+  const now = jstParts(new Date().toISOString());
+  return !!p && !!now && p.year === now.year && p.month === now.month;
+}
+
 function currentData() {
   return DATA[state.view] || { items: [], activeCount: null, updatedAt: '' };
 }
 
-// ネット予約可否で測った直近30日の純増減。解約数（delistedAt）をそのまま使うと、
+// ネット予約可否で測った今月（暦月）の純増減。解約数（delistedAt）をそのまま使うと、
 // 元々ネット予約が無かった店の解約まで「減少」に数えてしまい、新規掲載側
 // （newlyListedはreservable:trueのみ）と測り方が揃わない。減少側も「予約不可」リスト
 // （reservationLostAt。解約に伴う合成フラグ含む＝予約可だった店の解約も網羅済み）に
-// 揃えることで、両側とも「ネット予約可能な店が増えたか減ったか」だけを見る指標にする
-function netChange30() {
-  const lostCount = DATA.lost ? groupByAddress(DATA.lost.items, 'reservationLostAt').filter(g => withinDays(g.date, 30)).length : 0;
-  const newlyListedCount = DATA.newlyListed ? groupByAddress(DATA.newlyListed.items, 'newlyListedAt').filter(g => withinDays(g.date, 30)).length : 0;
+// 揃えることで、両側とも「ネット予約可能な店が増えたか減ったか」だけを見る指標にする。
+// 期間はローリング30日ではなく暦月（今月1日〜現在、JST基準）で区切る
+function netChangeThisMonth() {
+  const lostCount = DATA.lost ? groupByAddress(DATA.lost.items, 'reservationLostAt').filter(g => isThisMonth(g.date)).length : 0;
+  const newlyListedCount = DATA.newlyListed ? groupByAddress(DATA.newlyListed.items, 'newlyListedAt').filter(g => isThisMonth(g.date)).length : 0;
   return { lostCount, newlyListedCount, net: newlyListedCount - lostCount };
 }
 
@@ -418,13 +427,13 @@ function render() {
   const areas  = [...new Set(data.items.map(it => it.area).filter(Boolean))].sort();
   const genres = [...new Set(data.items.map(it => it.genre).filter(Boolean))].sort();
   const dupCount = items.length - groups.length;
-  const nc = netChange30();
+  const nc = netChangeThisMonth();
 
   el.innerHTML = `
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-label">${view.kpiLabel}</div><div class="kpi-value">${groupedAll.length}<span class="unit">軒</span></div><div class="kpi-note">記録開始以降（同一住所は1軒に集約）</div></div>
     <div class="kpi"><div class="kpi-label">直近30日</div><div class="kpi-value">${counts.d30}<span class="unit">軒</span></div><div class="kpi-note">直近7日: ${counts.d7}軒</div></div>
-    <div class="kpi"><div class="kpi-label">直近30日 予約可否の純増減</div><div class="kpi-value">${nc.net > 0 ? '+' : ''}${nc.net}<span class="unit">軒</span></div><div class="kpi-note">新規予約可${nc.newlyListedCount} / 予約不可化${nc.lostCount}</div></div>
+    <div class="kpi"><div class="kpi-label">今月の予約可否純増減</div><div class="kpi-value">${nc.net > 0 ? '+' : ''}${nc.net}<span class="unit">軒</span></div><div class="kpi-note">新規予約可${nc.newlyListedCount} / 予約不可化${nc.lostCount}</div></div>
   </div>
   <div class="filter-card"><div class="filter-row">
     ${PERIODS.map(p => `<button class="chip ${state.days === p.days ? 'active' : ''}" data-days="${p.days}">${p.label}</button>`).join('')}
